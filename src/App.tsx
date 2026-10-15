@@ -1,6 +1,20 @@
+
 import { Button } from "@/components/ui/button"
+import { useEffect } from "react"
+import { supabase } from "@/supabaseClient"
 
 export function App() {
+  useEffect(() => {
+    async function checkSupabaseConnection() {
+      const { data, error } = await supabase.from('your_table').select('*');
+      if (error) {
+        console.error("🔴 Error al conectar con Supabase:", error.message);
+      } else {
+        console.log("🟢 ¡Conexión exitosa con Supabase! Datos obtenidos:", data);
+      }
+    }
+    checkSupabaseConnection();
+  }, [])
   return (
     <div className="flex min-h-svh p-6">
       <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
