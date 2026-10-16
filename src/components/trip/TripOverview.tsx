@@ -4,6 +4,7 @@ import { TripHero } from "./TripHero"
 import { EditHeroModal, type HeroData } from "./EditHeroModal"
 import { DestinationsSlider } from "./DestinationsSlider"
 import { CityDetailView } from "./CityDetailView"
+import { BudgetView } from "./BudgetView"
 import { BudgetOverviewCard } from "./BudgetOverviewCard"
 import { UpcomingTasksCard } from "./UpcomingTasksCard"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -212,6 +213,8 @@ export function TripOverview({
             } else if (s === "itinerario") {
               setSelectedCityId("lisboa")
               setSelectedCityName("Lisboa")
+            } else if (s === "presupuesto") {
+              setSelectedCityId(null)
             }
             setIsMobileMenuOpen(false)
           }}
@@ -250,6 +253,12 @@ export function TripOverview({
                   : "Lisboa"
               )
             }}
+          />
+        ) : activeSection === "presupuesto" ? (
+          <BudgetView
+            tripName={currentTrip.name}
+            tripDates={`${currentTrip.dates} · Lisboa, Sintra y Oporto`}
+            onBack={() => setActiveSection("general")}
           />
         ) : (
           <>
