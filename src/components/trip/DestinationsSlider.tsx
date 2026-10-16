@@ -47,11 +47,13 @@ const INITIAL_DESTINATIONS: Destination[] = [
 interface DestinationsSliderProps {
   onAddDestination?: () => void
   onViewItinerary?: () => void
+  onSelectDestination?: (destination: Destination) => void
 }
 
 export function DestinationsSlider({
   onAddDestination,
   onViewItinerary,
+  onSelectDestination,
 }: DestinationsSliderProps) {
   const [destinations, setDestinations] =
     useState<Destination[]>(INITIAL_DESTINATIONS)
@@ -109,7 +111,8 @@ export function DestinationsSlider({
         {destinations.map((dest) => (
           <div
             key={dest.id}
-            className="flex flex-col justify-between w-full rounded-[14px] bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 overflow-hidden shadow-2xs hover:shadow-md transition-all group"
+            onClick={() => onSelectDestination?.(dest)}
+            className="flex flex-col justify-between w-full rounded-[14px] bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 overflow-hidden shadow-2xs hover:shadow-md transition-all group cursor-pointer hover:border-[#245544]/60"
           >
             {/* Destination Picture */}
             <div className="relative h-[125px] sm:h-[150px] lg:h-[160px] w-full overflow-hidden bg-stone-100 dark:bg-stone-800 shrink-0">
@@ -126,7 +129,10 @@ export function DestinationsSlider({
               {/* Favorite Heart Button */}
               <button
                 type="button"
-                onClick={() => toggleFavorite(dest.id)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleFavorite(dest.id)
+                }}
                 title={
                   dest.isFavorite
                     ? "Eliminar de favoritos"
@@ -152,11 +158,11 @@ export function DestinationsSlider({
 
             {/* Destination Details */}
             <div className="p-3 sm:p-4 flex flex-col justify-between flex-1 gap-2.5">
-              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
                 <h3 className="font-serif text-base sm:text-lg font-normal text-[#203D34] dark:text-stone-100 leading-tight">
                   {dest.name}
                 </h3>
-                <span className="text-[10px] sm:text-[11px] text-[#727B74] dark:text-stone-400">
+                <span className="text-[10px] sm:text-[11px] text-[#727B74] dark:text-stone-400 whitespace-nowrap shrink-0">
                   {dest.dates} · {dest.nights}{" "}
                   {dest.nights === 1 ? "noche" : "noches"}
                 </span>

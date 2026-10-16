@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { Sidebar, type TripOption } from "./Sidebar"
 import { TripHero } from "./TripHero"
-import { type HeroData } from "./EditHeroModal"
+import { EditHeroModal, type HeroData } from "./EditHeroModal"
 import { DestinationsSlider } from "./DestinationsSlider"
+import { CityDetailView } from "./CityDetailView"
 import { BudgetOverviewCard } from "./BudgetOverviewCard"
 import { UpcomingTasksCard } from "./UpcomingTasksCard"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -31,21 +32,90 @@ export function TripOverview({
   const [isInviteOpen, setIsInviteOpen] = useState(false)
   const [isAddDestinationOpen, setIsAddDestinationOpen] = useState(false)
   const [isEditHeroModalOpen, setIsEditHeroModalOpen] = useState(false)
+  const [isCreateTripModalOpen, setIsCreateTripModalOpen] = useState(false)
   const [isEditingTitleInline, setIsEditingTitleInline] = useState(false)
   const [inlineTitleValue, setInlineTitleValue] = useState(tripsList[0].name)
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteSuccess, setInviteSuccess] = useState(false)
   const [newCityName, setNewCityName] = useState("")
+  const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
+  const [selectedCityName, setSelectedCityName] = useState<string>("Lisboa")
+
+  const [tripHeroes, setTripHeroes] = useState<Record<string, HeroData>>({
+    portugal: {
+      tripName: "Portugal en familia",
+      dates: "6–13 nov 2026",
+      title: "Hay viajes que ya se sienten cerca.",
+      subtitle: "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.",
+      image: "/images/lisboa-panoramica.png",
+      locationBadge: "Lisboa, Portugal",
+    },
+    menorca: {
+      tripName: "Un verano en Menorca",
+      dates: "12–19 jul 2026",
+      title: "Calas turquesas y brisa mediterránea.",
+      subtitle: "Ciutadella, Fornells y senderos mágicos en familia.",
+      image: "/images/family-costa-brava.png",
+      locationBadge: "Menorca, España",
+    },
+    pirineos: {
+      tripName: "Escapada a los Pirineos",
+      dates: "2–5 abr 2026",
+      title: "Naturaleza viva y aire puro de montaña.",
+      subtitle: "Senderos verdes, valles y refugios inolvidables.",
+      image: "/images/costa-brava.jpg",
+      locationBadge: "Pirineos, España",
+    },
+  })
 
   const handleSaveHero = (data: HeroData) => {
     if (data.tripName && data.tripName.trim()) {
       const newName = data.tripName.trim()
-      setCurrentTrip((prev) => ({ ...prev, name: newName }))
+      const newDates = data.dates?.trim() || currentTrip.dates
+      setCurrentTrip((prev) => ({ ...prev, name: newName, dates: newDates }))
       setInlineTitleValue(newName)
       setTripsList((prev) =>
-        prev.map((t) => (t.id === currentTrip.id ? { ...t, name: newName } : t))
+        prev.map((t) =>
+          t.id === currentTrip.id ? { ...t, name: newName, dates: newDates } : t
+        )
       )
+      setTripHeroes((prev) => ({
+        ...prev,
+        [currentTrip.id]: {
+          ...data,
+          tripName: newName,
+          dates: newDates,
+        },
+      }))
     }
+  }
+
+  const handleCreateTrip = (data: HeroData) => {
+    const newId = `trip-${Date.now()}`
+    const newName = data.tripName?.trim() || "Nuevo viaje familiar"
+    const newDates = data.dates?.trim() || "Fechas por definir"
+    const newTrip: TripOption = {
+      id: newId,
+      name: newName,
+      dates: newDates,
+    }
+
+    setTripHeroes((prev) => ({
+      ...prev,
+      [newId]: {
+        tripName: newName,
+        dates: newDates,
+        title: data.title || "Una nueva historia por escribir.",
+        subtitle: data.subtitle || "Explorando juntos nuevos rincones.",
+        image: data.image || "/images/family-costa-brava.png",
+        locationBadge: data.locationBadge || newName,
+      },
+    }))
+
+    setTripsList((prev) => [newTrip, ...prev])
+    setCurrentTrip(newTrip)
+    setInlineTitleValue(newName)
+    setIsCreateTripModalOpen(false)
   }
 
   const { theme, setTheme } = useTheme()
@@ -134,28 +204,55 @@ export function TripOverview({
         } lg:block shrink-0 z-40 lg:sticky lg:top-0 lg:h-screen lg:self-start`}
       >
         <Sidebar
-          activeSection={activeSection}
+          activeSection={selectedCityId ? "itinerario" : activeSection}
           onSectionChange={(s) => {
             setActiveSection(s)
+            if (s === "general") {
+              setSelectedCityId(null)
+            } else if (s === "itinerario") {
+              setSelectedCityId("lisboa")
+              setSelectedCityName("Lisboa")
+            }
             setIsMobileMenuOpen(false)
           }}
           currentTrip={currentTrip}
           onTripChange={(trip) => {
             setCurrentTrip(trip)
             setInlineTitleValue(trip.name)
+            setSelectedCityId(null)
           }}
           userName={userName}
           onSignOut={onSignOut}
           trips={tripsList}
           onEditCurrentTrip={() => setIsEditHeroModalOpen(true)}
-          onNewTrip={() =>
-            alert("Podrás crear nuevos viajes familiares muy pronto en Travesía.")
-          }
+          onNewTrip={() => setIsCreateTripModalOpen(true)}
         />
       </div>
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col p-4 sm:p-7 md:p-9 lg:py-8 lg:px-10 max-w-[1240px] gap-7 overflow-y-auto">
+        {selectedCityId ? (
+          <CityDetailView
+            cityId={selectedCityId}
+            cityName={selectedCityName}
+            tripName={currentTrip.name}
+            onBack={() => {
+              setSelectedCityId(null)
+              setActiveSection("general")
+            }}
+            onSelectCity={(id) => {
+              setSelectedCityId(id)
+              setSelectedCityName(
+                id === "sintra"
+                  ? "Sintra"
+                  : id === "oporto"
+                  ? "Oporto"
+                  : "Lisboa"
+              )
+            }}
+          />
+        ) : (
+          <>
         {/* Context Bar */}
         <div className="flex items-center justify-between text-xs text-[#727B74] dark:text-stone-400 select-none">
           {/* Breadcrumb */}
@@ -500,8 +597,9 @@ export function TripOverview({
         {/* Hero Panorama & 21 Days Countdown with Admin Edit Button */}
         <TripHero
           tripName={currentTrip.name}
+          initialData={tripHeroes[currentTrip.id]}
           daysRemaining={21}
-          departureDate="6 de noviembre"
+          departureDate={currentTrip.dates}
           isAdmin={isAdmin}
           isEditModalOpen={isEditHeroModalOpen}
           onToggleEditModal={setIsEditHeroModalOpen}
@@ -511,7 +609,16 @@ export function TripOverview({
         {/* The Requested Destinations Slider */}
         <DestinationsSlider
           onAddDestination={() => setIsAddDestinationOpen(true)}
-          onViewItinerary={() => setActiveSection("itinerario")}
+          onViewItinerary={() => {
+            setSelectedCityId("lisboa")
+            setSelectedCityName("Lisboa")
+            setActiveSection("itinerario")
+          }}
+          onSelectDestination={(dest) => {
+            setSelectedCityId(dest.id)
+            setSelectedCityName(dest.name)
+            setActiveSection("itinerario")
+          }}
         />
 
         {/* Budget and Tasks 2-Column Section */}
@@ -523,7 +630,9 @@ export function TripOverview({
             onViewAllTasks={() => setActiveSection("tareas")}
           />
         </div>
-      </main>
+      </>
+    )}
+  </main>
 
       {/* Modal: Invitar Viajeros */}
       {isInviteOpen && (
@@ -660,6 +769,14 @@ export function TripOverview({
           </div>
         </div>
       )}
+
+      {/* Modal: Crear Nuevo Viaje usando EditHeroModal */}
+      <EditHeroModal
+        mode="create"
+        isOpen={isCreateTripModalOpen}
+        onClose={() => setIsCreateTripModalOpen(false)}
+        onSave={handleCreateTrip}
+      />
     </div>
   )
 }

@@ -12,13 +12,17 @@ CREATE TYPE tipo_transporte AS ENUM ('avion', 'tren', 'bus', 'coche', 'ferry', '
 
 -- Viajes
 CREATE TABLE viajes (
-  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  nombre            text NOT NULL,
-  fecha_inicio      date,
-  fecha_fin         date,
-  presupuesto_total numeric(12,2) NOT NULL DEFAULT 0 CHECK (presupuesto_total >= 0),
-  creado_por        uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  creado_en         timestamptz NOT NULL DEFAULT now()
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nombre             text NOT NULL,
+  fecha_inicio       date,
+  fecha_fin          date,
+  presupuesto_total  numeric(12,2) NOT NULL DEFAULT 0 CHECK (presupuesto_total >= 0),
+  foto_portada       text,
+  titulo_cabecero    text,
+  subtitulo_cabecero text,
+  etiqueta_ubicacion text,
+  creado_por         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  creado_en          timestamptz NOT NULL DEFAULT now()
 );
 
 -- Miembros del viaje (permisos de colaboración)

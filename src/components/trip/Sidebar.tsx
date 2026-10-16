@@ -241,7 +241,8 @@ export function Sidebar({
                       setIsTripMenuOpen(false)
                       onEditCurrentTrip()
                     }}
-                    className="flex items-center gap-2 p-2 rounded-[6px] text-xs font-medium text-[#203D34] hover:bg-[#E8EFEA] dark:text-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                    title={`Editar "${currentTrip.name}"`}
+                    className="flex items-center gap-2 p-2 rounded-[6px] text-xs font-medium text-[#203D34] hover:bg-[#E8EFEA] dark:text-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer whitespace-nowrap overflow-hidden"
                   >
                     <svg
                       width="13"
@@ -252,12 +253,18 @@ export function Sidebar({
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="text-[#245544] dark:text-[#A7F3D0]"
+                      className="text-[#245544] dark:text-[#A7F3D0] shrink-0"
                     >
                       <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                       <path d="m15 5 4 4" />
                     </svg>
-                    <span>Editar "{currentTrip.name}"</span>
+                    <span className="truncate">
+                      Editar &quot;
+                      {currentTrip.name.length > 11
+                        ? `${currentTrip.name.slice(0, 11).trimEnd()}...`
+                        : currentTrip.name}
+                      &quot;
+                    </span>
                   </button>
                 )}
 

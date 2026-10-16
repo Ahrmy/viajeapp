@@ -34,10 +34,19 @@ export function TripHero({
 
   const [internalIsEditOpen, setInternalIsEditOpen] = useState(false)
 
-  // Sync tripName when changed from outside
+  // Sync heroData when tripName or initialData changes from outside
   useEffect(() => {
-    setHeroData((prev) => ({ ...prev, tripName }))
-  }, [tripName])
+    setHeroData({
+      tripName: tripName,
+      dates: initialData?.dates,
+      title: initialData?.title || "Hay viajes que ya se sienten cerca.",
+      subtitle:
+        initialData?.subtitle ||
+        "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.",
+      image: initialData?.image || "/images/lisboa-panoramica.png",
+      locationBadge: initialData?.locationBadge || "Lisboa, Portugal",
+    })
+  }, [tripName, initialData])
 
   const isModalOpen =
     externalIsEditOpen !== undefined ? externalIsEditOpen : internalIsEditOpen
@@ -203,6 +212,7 @@ export function TripHero({
       {isAdmin && (
         <EditHeroModal
           isOpen={isModalOpen}
+          mode="edit"
           onClose={() => setModalOpen(false)}
           currentData={{ ...heroData, tripName }}
           onSave={handleSave}
