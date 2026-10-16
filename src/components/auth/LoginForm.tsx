@@ -1,20 +1,16 @@
 import { useState, type FormEvent } from "react"
-import { HugeiconsIcon } from "@hugeicons/react"
-import {
-  ArrowRight01Icon,
-  Mail01Icon,
-  ViewIcon,
-  ViewOffIcon,
-  Tick02Icon,
-  AlertCircleIcon,
-} from "@hugeicons/core-free-icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { supabase } from "@/supabaseClient"
+import { supabase, isSupabaseConfigured } from "@/supabaseClient"
 
-export function LoginForm() {
+interface LoginFormProps {
+  onSuccess?: () => void
+  onSwitchToRegister?: () => void
+}
+
+export function LoginForm({ onSwitchToRegister: _onSwitchToRegister }: LoginFormProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
@@ -29,6 +25,13 @@ export function LoginForm() {
     e.preventDefault()
     setErrorMessage(null)
     setSuccessMessage(null)
+
+    if (!isSupabaseConfigured) {
+      setErrorMessage(
+        "Falta configurar las credenciales de Supabase en el archivo .env (VITE_SUPABASE_URL y VITE_SUPABASE_API_KEY)."
+      )
+      return
+    }
 
     if (!email.trim()) {
       setErrorMessage("Por favor, introduce tu correo electrónico.")
@@ -70,6 +73,13 @@ export function LoginForm() {
     setErrorMessage(null)
     setSuccessMessage(null)
 
+    if (!isSupabaseConfigured) {
+      setErrorMessage(
+        "Falta configurar las credenciales de Supabase en el archivo .env (VITE_SUPABASE_URL y VITE_SUPABASE_API_KEY)."
+      )
+      return
+    }
+
     if (!email.trim()) {
       setErrorMessage("Introduce tu correo arriba para recibir el enlace mágico.")
       return
@@ -104,13 +114,13 @@ export function LoginForm() {
   }
 
   return (
-    <div className="w-full max-w-[420px] mx-auto">
+    <div className="w-full max-w-[420px] mx-auto flex flex-col">
       {/* Title & Subtitle */}
-      <div className="mb-8">
-        <h2 className="font-serif text-3xl sm:text-[38px] font-bold tracking-tight text-[#162D24] dark:text-stone-100">
+      <div className="flex flex-col gap-2.5 mb-8">
+        <h2 className="font-serif text-3xl sm:text-4xl md:text-[44px] font-normal leading-[1.15] tracking-tight text-[#203D34] dark:text-stone-100">
           Qué bueno verte.
         </h2>
-        <p className="mt-2 text-sm sm:text-[15px] leading-relaxed text-stone-600 dark:text-stone-400">
+        <p className="text-sm sm:text-[15px] leading-[1.6] text-[#4D5B54] dark:text-stone-300">
           Tu próxima aventura en familia
           <br />
           te está esperando.
@@ -121,12 +131,20 @@ export function LoginForm() {
       {errorMessage && (
         <div
           role="alert"
-          className="mb-5 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50/90 p-3 text-xs text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 transition-all animate-in fade-in duration-200"
+          className="mb-5 flex items-start gap-2.5 rounded-[8px] border border-red-200 bg-red-50/90 dark:border-red-900/50 dark:bg-red-950/40 p-3.5 text-xs text-red-800 dark:text-red-300 transition-all animate-in fade-in duration-200"
         >
-          <HugeiconsIcon
-            icon={AlertCircleIcon}
-            className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5"
-          />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="text-red-600 dark:text-red-400 shrink-0 mt-0.5"
+          >
+            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M8 5V8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="8" cy="11.5" r="0.75" fill="currentColor" />
+          </svg>
           <span className="flex-1 leading-normal">{errorMessage}</span>
         </div>
       )}
@@ -134,23 +152,36 @@ export function LoginForm() {
       {successMessage && (
         <div
           role="status"
-          className="mb-5 flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50/90 p-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300 transition-all animate-in fade-in duration-200"
+          className="mb-5 flex items-start gap-2.5 rounded-[8px] border border-emerald-200 bg-emerald-50/90 dark:border-emerald-900/50 dark:bg-emerald-950/40 p-3.5 text-xs text-emerald-800 dark:text-emerald-300 transition-all animate-in fade-in duration-200"
         >
-          <HugeiconsIcon
-            icon={Tick02Icon}
-            className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
-          />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5"
+          >
+            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+            <path
+              d="M5 8.5L7 10.5L11 5.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
           <span className="flex-1 leading-normal">{successMessage}</span>
         </div>
       )}
 
       {/* Form */}
-      <form onSubmit={handlePasswordLogin} className="space-y-4">
+      <form onSubmit={handlePasswordLogin} className="flex flex-col gap-5">
         {/* Email Field */}
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-2">
           <Label
             htmlFor="email"
-            className="text-xs font-semibold text-[#162D24] dark:text-stone-300"
+            className="text-sm font-medium text-[#203D34] dark:text-stone-200"
           >
             Correo electrónico
           </Label>
@@ -162,15 +193,15 @@ export function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="tu@correo.com"
-            className="h-11 rounded-lg border-[#DDD7CD] dark:border-stone-700 bg-white dark:bg-stone-900/70 px-3.5 text-sm text-stone-900 dark:text-stone-100 placeholder:text-stone-400 shadow-2xs focus-visible:border-[#1B4332] focus-visible:ring-1 focus-visible:ring-[#1B4332] dark:focus-visible:border-emerald-500 dark:focus-visible:ring-emerald-500"
+            className="h-[52px] rounded-[8px] border-[#CCD2CA] bg-white dark:bg-stone-900/70 dark:border-stone-700 px-4 text-sm text-[#203D34] dark:text-stone-100 placeholder:text-[#727B74] focus-visible:border-[#245544] focus-visible:ring-1 focus-visible:ring-[#245544] dark:focus-visible:border-emerald-500 shadow-2xs"
           />
         </div>
 
         {/* Password Field */}
-        <div className="space-y-1.5">
+        <div className="flex flex-col gap-2">
           <Label
             htmlFor="password"
-            className="text-xs font-semibold text-[#162D24] dark:text-stone-300"
+            className="text-sm font-medium text-[#203D34] dark:text-stone-200"
           >
             Contraseña
           </Label>
@@ -183,36 +214,56 @@ export function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Introduce tu contraseña"
-              className="h-11 rounded-lg border-[#DDD7CD] dark:border-stone-700 bg-white dark:bg-stone-900/70 pl-3.5 pr-20 text-sm text-stone-900 dark:text-stone-100 placeholder:text-stone-400 shadow-2xs focus-visible:border-[#1B4332] focus-visible:ring-1 focus-visible:ring-[#1B4332] dark:focus-visible:border-emerald-500 dark:focus-visible:ring-emerald-500"
+              className="h-[52px] rounded-[8px] border-[#CCD2CA] bg-white dark:bg-stone-900/70 dark:border-stone-700 pl-4 pr-24 text-sm text-[#203D34] dark:text-stone-100 placeholder:text-[#727B74] focus-visible:border-[#245544] focus-visible:ring-1 focus-visible:ring-[#245544] dark:focus-visible:border-emerald-500 shadow-2xs"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-              className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs font-medium text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 transition-colors cursor-pointer select-none py-1 px-1 rounded-sm focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-[#1B4332]"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-[11px] font-medium text-[#4D5B54] hover:text-[#203D34] dark:text-stone-400 dark:hover:text-stone-200 transition-colors cursor-pointer py-1 px-1.5 rounded-sm"
             >
-              <HugeiconsIcon
-                icon={showPassword ? ViewOffIcon : ViewIcon}
-                className="w-3.5 h-3.5"
-                strokeWidth={2}
-              />
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 18 18"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="shrink-0"
+              >
+                <path
+                  d="M1.5 9C1.5 9 4.5 3.75 9 3.75C13.5 3.75 16.5 9 16.5 9C16.5 9 13.5 14.25 9 14.25C4.5 14.25 1.5 9 1.5 9Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle
+                  cx="9"
+                  cy="9"
+                  r="2.25"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
               <span>{showPassword ? "Ocultar" : "Mostrar"}</span>
             </button>
           </div>
         </div>
 
         {/* Remember me & Forgot Password */}
-        <div className="flex items-center justify-between pt-0.5">
+        <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2">
             <Checkbox
               id="remember-me"
               checked={rememberMe}
               onCheckedChange={(checked) => setRememberMe(checked === true)}
-              className="border-[#C5BFB5] data-checked:bg-[#1B4332] data-checked:border-[#1B4332] dark:border-stone-600 dark:data-checked:bg-emerald-600 dark:data-checked:border-emerald-600"
+              className="h-[17px] w-[17px] rounded-[4px] border-[#CCD2CA] data-checked:bg-[#245544] data-checked:border-[#245544] dark:border-stone-600 dark:data-checked:bg-emerald-600"
             />
             <Label
               htmlFor="remember-me"
-              className="text-xs text-stone-600 dark:text-stone-400 cursor-pointer font-normal select-none"
+              className="text-xs text-[#4D5B54] dark:text-stone-400 cursor-pointer font-normal select-none"
             >
               Recordar sesión
             </Label>
@@ -223,10 +274,10 @@ export function LoginForm() {
             onClick={(e) => {
               e.preventDefault()
               alert(
-                "Para recuperar tu contraseña, introduce tu correo arriba y pulsa 'Recibir un enlace mágico' para acceder directamente."
+                "Para recuperar tu contraseña, introduce tu correo y pulsa 'Recibir un enlace mágico' abajo."
               )
             }}
-            className="text-xs text-stone-600 hover:text-[#162D24] dark:text-stone-400 dark:hover:text-stone-200 transition-colors underline-offset-4 hover:underline"
+            className="text-xs font-medium text-[#245544] hover:underline dark:text-emerald-400 transition-colors"
           >
             ¿Olvidaste tu contraseña?
           </a>
@@ -237,7 +288,7 @@ export function LoginForm() {
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full h-11 bg-[#1C4532] hover:bg-[#153526] text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 group cursor-pointer dark:bg-[#1E4D39] dark:hover:bg-[#163B2C]"
+            className="w-full h-[52px] bg-[#245544] hover:bg-[#1b4335] text-white font-semibold text-sm rounded-[8px] transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs dark:bg-[#204e3e] dark:hover:bg-[#193e31]"
           >
             {isLoading ? (
               <span className="inline-flex items-center gap-2">
@@ -247,11 +298,21 @@ export function LoginForm() {
             ) : (
               <>
                 <span>Iniciar sesión</span>
-                <HugeiconsIcon
-                  icon={ArrowRight01Icon}
-                  className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
-                  strokeWidth={2}
-                />
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 18 18"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M3.75 9H14.25M14.25 9L9.75 4.5M14.25 9L9.75 13.5"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </>
             )}
           </Button>
@@ -259,46 +320,65 @@ export function LoginForm() {
       </form>
 
       {/* Divider */}
-      <div className="relative my-6">
+      <div className="relative my-7">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-[#E2DDD3] dark:border-stone-800" />
+          <div className="w-full border-t border-[#DFE2DA] dark:border-stone-800" />
         </div>
         <div className="relative flex justify-center text-xs">
-          <span className="bg-[#FAF8F5] dark:bg-[#131915] px-3 text-stone-500 dark:text-stone-400 select-none">
+          <span className="bg-[#FAF9F5] dark:bg-[#121714] px-4 text-[#727B74] dark:text-stone-400 select-none">
             o entra sin contraseña
           </span>
         </div>
       </div>
 
       {/* Magic Link Button */}
-      <div>
+      <div className="flex flex-col gap-3">
         <Button
           type="button"
           variant="outline"
           disabled={isMagicLinkLoading}
           onClick={handleMagicLink}
-          className="w-full h-11 border-[#DCD6CC] dark:border-stone-700/80 bg-white dark:bg-stone-900/40 hover:bg-[#F5F2EB] dark:hover:bg-stone-800/80 text-stone-800 dark:text-stone-200 rounded-lg font-medium flex items-center justify-center gap-2 shadow-2xs transition-colors cursor-pointer"
+          className="w-full h-[52px] border-[#CCD2CA] dark:border-stone-700 bg-[#FAF9F5] dark:bg-stone-900/40 hover:bg-[#F0EEE6] dark:hover:bg-stone-800 text-[#245544] dark:text-emerald-400 rounded-[8px] font-medium text-sm flex items-center justify-center gap-2.5 shadow-2xs transition-colors cursor-pointer"
         >
           {isMagicLinkLoading ? (
-            <span className="inline-flex items-center gap-2 text-stone-600 dark:text-stone-300">
-              <span className="w-4 h-4 border-2 border-stone-400 border-t-stone-800 rounded-full animate-spin dark:border-stone-600 dark:border-t-stone-200" />
+            <span className="inline-flex items-center gap-2 text-[#4D5B54] dark:text-stone-300">
+              <span className="w-4 h-4 border-2 border-stone-400 border-t-stone-800 rounded-full animate-spin" />
               Enviando enlace...
             </span>
           ) : (
             <>
-              <HugeiconsIcon
-                icon={Mail01Icon}
-                className="w-4 h-4 text-stone-600 dark:text-stone-400"
-                strokeWidth={1.8}
-              />
+              <svg
+                width="19"
+                height="19"
+                viewBox="0 0 19 19"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="text-[#245544] dark:text-emerald-400 shrink-0"
+              >
+                <path
+                  d="M2.375 5.54167C2.375 4.66722 3.08388 3.95833 3.95833 3.95833H15.0417C15.9161 3.95833 16.625 4.66722 16.625 5.54167V13.4583C16.625 14.3328 15.9161 15.0417 15.0417 15.0417H3.95833C3.08388 15.0417 2.375 14.3328 2.375 13.4583V5.54167Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M3.16666 4.75L9.5 9.89583L15.8333 4.75"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
               <span>Recibir un enlace mágico</span>
             </>
           )}
         </Button>
 
-        <p className="mt-3 text-center text-[11px] sm:text-xs leading-relaxed text-stone-500 dark:text-stone-400 px-2 select-none">
-          Escribe tu correo arriba y te enviaremos un enlace para entrar. No
-          necesitas contraseña.
+        <p className="text-center text-xs leading-[1.6] text-[#727B74] dark:text-stone-400 px-2 select-none">
+          Escribe tu correo arriba y te enviaremos un enlace
+          <br />
+          para entrar. No necesitas contraseña.
         </p>
       </div>
     </div>

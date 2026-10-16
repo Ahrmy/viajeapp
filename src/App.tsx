@@ -1,20 +1,34 @@
 import { useEffect, useState } from "react"
-import { supabase } from "@/supabaseClient"
+import { supabase, isSupabaseConfigured } from "@/supabaseClient"
 import { LoginScreen } from "@/components/auth/LoginScreen"
-import { Button } from "@/components/ui/button"
+import { TripOverview } from "@/components/trip/TripOverview"
 import { Logo } from "@/components/auth/Logo"
 import type { User } from "@supabase/supabase-js"
 
 export function App() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  // Default to overview so user immediately sees the new "Travesía · Vista general" screen
+  const [activeView, setActiveView] = useState<"overview" | "auth">("overview")
 
   useEffect(() => {
-    // Check initial active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
+    if (!isSupabaseConfigured) {
       setLoading(false)
-    })
+      return
+    }
+
+    // Check initial active session safely
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setUser(data?.session?.user ?? null)
+      })
+      .catch((err) => {
+        console.warn("No se pudo obtener la sesión:", err)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
 
     // Listen to auth changes
     const {
@@ -31,41 +45,66 @@ export function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#FAF8F5] dark:bg-[#121714]">
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#FAF9F5] dark:bg-[#121714]">
         <div className="flex flex-col items-center gap-3">
           <Logo />
-          <div className="w-5 h-5 border-2 border-[#1B4332] border-t-transparent dark:border-emerald-400 dark:border-t-transparent rounded-full animate-spin mt-2" />
+          <div className="w-5 h-5 border-2 border-[#245544] border-t-transparent dark:border-emerald-400 dark:border-t-transparent rounded-full animate-spin mt-2" />
         </div>
       </div>
     )
   }
 
-  // If user is already authenticated
-  if (user) {
-    return (
-      <div className="min-h-screen w-full bg-[#FAF8F5] dark:bg-[#121714] text-stone-900 dark:text-stone-100 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full rounded-2xl bg-white dark:bg-stone-900 p-8 shadow-sm border border-[#E5E0D6] dark:border-stone-800 text-center space-y-5">
-          <Logo className="justify-center" />
-          <div className="space-y-1">
-            <h1 className="font-serif text-2xl font-bold text-[#162D24] dark:text-stone-100">
-              ¡Bienvenido a Travesía!
-            </h1>
-            <p className="text-sm text-stone-500 dark:text-stone-400">
-              Sesión iniciada con <span className="font-medium text-stone-700 dark:text-stone-200">{user.email}</span>
-            </p>
-          </div>
-          <Button
-            onClick={() => supabase.auth.signOut()}
-            className="w-full bg-[#1C4532] hover:bg-[#153526] text-white"
-          >
-            Cerrar sesión
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  const userName =
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    user?.email?.split("@")[0] ||
+    "Clara López"
 
-  return <LoginScreen />
+  return (
+    <div className="relative min-h-screen">
+      {/* Floating View Switcher Pill so the user can easily switch between Vista general and Login/Register */}
+      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 p-1 rounded-full bg-white/92 dark:bg-stone-900/92 backdrop-blur-md border border-[#CCD2CA] dark:border-stone-700 shadow-lg text-xs">
+        <button
+          type="button"
+          onClick={() => setActiveView("overview")}
+          className={`px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer ${
+            activeView === "overview"
+              ? "bg-[#245544] text-white shadow-xs"
+              : "text-[#4D5B54] dark:text-stone-300 hover:text-[#203D34] dark:hover:text-white"
+          }`}
+        >
+          Vista general
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveView("auth")}
+          className={`px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer ${
+            activeView === "auth"
+              ? "bg-[#245544] text-white shadow-xs"
+              : "text-[#4D5B54] dark:text-stone-300 hover:text-[#203D34] dark:hover:text-white"
+          }`}
+        >
+          Login / Registro
+        </button>
+      </div>
+
+      {activeView === "overview" ? (
+        <TripOverview
+          userName={userName}
+          onSignOut={
+            user
+              ? () => {
+                  supabase.auth.signOut()
+                  setUser(null)
+                }
+              : undefined
+          }
+        />
+      ) : (
+        <LoginScreen />
+      )}
+    </div>
+  )
 }
 
 export default App

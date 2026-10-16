@@ -6,33 +6,31 @@ interface LogoProps {
 
 export function Logo({
   className = "",
-  iconSize = 28,
-  textSize = "text-2xl",
+  iconSize = 34,
+  textSize = "text-[30px]",
 }: LogoProps) {
   return (
     <div className={`inline-flex items-center gap-2.5 select-none ${className}`}>
-      <div className="relative flex items-center justify-center">
+      <div className="relative flex items-center justify-center shrink-0">
         <svg
           width={iconSize}
           height={iconSize}
-          viewBox="0 0 32 32"
-          className="text-[#162D24] dark:text-[#6EE7B7] transition-colors"
+          viewBox="0 0 36 36"
           fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          xmlns="http://www.w3.org/2000/svg"
+          className="text-[#245544] dark:text-[#6EE7B7] transition-colors"
         >
-          {/* Mountain / Tent arch forming the 'A' */}
-          <path d="M6.5 25.5L15.2 6.8C15.5 6.1 16.5 6.1 16.8 6.8L25.5 25.5" />
-          {/* Horizontal crossbar */}
-          <path d="M10 19.5H22" />
-          {/* Winding trail journey stroke */}
-          <path d="M16 19.5C16 22 13.5 23 14.5 25.5" />
+          <path
+            d="M0.908164 31.2605L14.0623 3.63674C15.8162 0.128962 18.0086 0.128962 20.6394 3.63674L35.109 31.2605M7.48524 19.4217H18.0086M18.0086 19.4217H28.5319M18.0086 19.4217C8.80066 24.6834 28.5319 24.6834 18.0086 35.2067"
+            strokeWidth="2.01"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       </div>
       <span
-        className={`font-serif font-bold tracking-tight text-[#162D24] dark:text-stone-100 ${textSize}`}
+        className={`font-serif font-normal tracking-tight text-[#203D34] dark:text-stone-100 ${textSize}`}
       >
         Travesía
       </span>
