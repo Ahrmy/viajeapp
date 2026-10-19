@@ -1,10 +1,14 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { tripService } from "@/lib/tripService"
 
 interface BudgetViewProps {
+  tripId?: string
   tripName?: string
   tripDates?: string
+  initialLimit?: number
   onBack: () => void
+  onUpdateLimit?: (newLimit: number) => void
 }
 
 interface Expense {
@@ -109,12 +113,15 @@ const INITIAL_EXPENSES: Expense[] = [
 ]
 
 export function BudgetView({
+  tripId,
   tripName = "Portugal en familia",
   tripDates = "6–13 noviembre 2026 · Lisboa, Sintra y Oporto",
+  initialLimit = 3200,
   onBack,
+  onUpdateLimit,
 }: BudgetViewProps) {
   const [expenses, setExpenses] = useState<Expense[]>(INITIAL_EXPENSES)
-  const [totalLimit, setTotalLimit] = useState(3200)
+  const [totalLimit, setTotalLimit] = useState(initialLimit || 3200)
   const [statusFilter, setStatusFilter] = useState<
     "todos" | "realizados" | "proyectados"
   >("todos")
@@ -134,6 +141,64 @@ export function BudgetView({
   // Modal Editar Límite
   const [isEditLimitOpen, setIsEditLimitOpen] = useState(false)
   const [limitInput, setLimitInput] = useState(totalLimit.toString())
+
+  useEffect(() => {
+    if (initialLimit && initialLimit > 0) {
+      setTotalLimit(initialLimit)
+      setLimitInput(initialLimit.toString())
+    }
+  }, [initialLimit])
+
+  // Cargar gastos de Supabase si existe tripId
+  useEffect(() => {
+    if (!tripId) return
+
+    let isMounted = true
+    tripService.getExpenses(tripId).then((dbExpenses) => {
+      if (!isMounted) return
+      if (dbExpenses && dbExpenses.length > 0) {
+        const categoryLabels: Record<Expense["category"], string> = {
+          alojamiento: "Alojamiento",
+          transporte: "Transporte",
+          actividades: "Actividades",
+          comida: "Comida y bebida",
+          otros: "Otros",
+        }
+
+        const mapped: Expense[] = dbExpenses.map((g) => {
+          const rawCat = (g.categoria || "otros").toLowerCase()
+          const cat: Expense["category"] = [
+            "alojamiento",
+            "transporte",
+            "actividades",
+            "comida",
+          ].includes(rawCat)
+            ? (rawCat as Expense["category"])
+            : "otros"
+
+          const isApproved = g.estado === "aprobado"
+          return {
+            id: g.id,
+            title: g.titulo || "Gasto sin título",
+            category: cat,
+            categoryLabel: categoryLabels[cat] || "Otros",
+            status: isApproved ? "realizado" : "proyectado",
+            description: g.titulo || "Registrado en el viaje",
+            amount: Number(g.monto),
+            author: "Familia",
+            authorInitials: "FM",
+            payer: isApproved ? "Aprobado" : "Pendiente",
+            isPaid: isApproved,
+          }
+        })
+        setExpenses(mapped)
+      }
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [tripId])
 
   // Calculations
   const totalRealized = useMemo(
@@ -193,7 +258,7 @@ export function BudgetView({
     })
   }, [expenses, statusFilter, categoryFilter])
 
-  const handleCreateExpense = (e: React.FormEvent) => {
+  const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTitle.trim() || !newAmount) return
     const amountVal = parseFloat(newAmount) || 0
@@ -204,8 +269,24 @@ export function BudgetView({
       comida: "Comida y bebida",
       otros: "Otros",
     }
+
+    let createdId = `exp-${Date.now()}`
+
+    if (tripId) {
+      const res = await tripService.createExpense({
+        viaje_id: tripId,
+        categoria: newCategory,
+        titulo: newTitle.trim(),
+        monto: amountVal,
+        estado: newStatus === "realizado" ? "aprobado" : "pendiente",
+      })
+      if (res.data?.id) {
+        createdId = res.data.id
+      }
+    }
+
     const newExp: Expense = {
-      id: `exp-${Date.now()}`,
+      id: createdId,
       title: newTitle.trim(),
       amount: amountVal,
       category: newCategory,
@@ -224,11 +305,46 @@ export function BudgetView({
     setNewDescription("")
   }
 
-  const handleSaveLimit = (e: React.FormEvent) => {
+  const handleToggleExpenseStatus = async (id: string) => {
+    const target = expenses.find((e) => e.id === id)
+    if (!target) return
+    const nextStatus = target.status === "realizado" ? "proyectado" : "realizado"
+    setExpenses((prev) =>
+      prev.map((e) =>
+        e.id === id
+          ? {
+            ...e,
+            status: nextStatus,
+            isPaid: nextStatus === "realizado",
+            payer: nextStatus === "realizado" ? (e.payer === "Pendiente" ? "Clara" : e.payer) : "Pendiente",
+          }
+          : e
+      )
+    )
+
+    if (tripId) {
+      await tripService.updateExpense(id, {
+        estado: nextStatus === "realizado" ? "aprobado" : "pendiente",
+      })
+    }
+  }
+
+  const handleDeleteExpense = async (id: string) => {
+    setExpenses((prev) => prev.filter((e) => e.id !== id))
+    if (tripId) {
+      await tripService.deleteExpense(id)
+    }
+  }
+
+  const handleSaveLimit = async (e: React.FormEvent) => {
     e.preventDefault()
     const val = parseFloat(limitInput)
     if (!isNaN(val) && val > 0) {
       setTotalLimit(val)
+      if (tripId) {
+        await tripService.updateTrip(tripId, { presupuesto_total: val })
+      }
+      onUpdateLimit?.(val)
     }
     setIsEditLimitOpen(false)
   }
@@ -565,22 +681,20 @@ export function BudgetView({
             <button
               type="button"
               onClick={() => setStatusFilter("todos")}
-              className={`px-3 py-1.5 rounded-[6px] font-medium transition-all cursor-pointer ${
-                statusFilter === "todos"
+              className={`px-3 py-1.5 rounded-[6px] font-medium transition-all cursor-pointer ${statusFilter === "todos"
                   ? "bg-[#245544] text-white shadow-2xs"
                   : "text-[#4D5B54] dark:text-stone-300 hover:text-[#203D34]"
-              }`}
+                }`}
             >
               Todos · {expenses.length}
             </button>
             <button
               type="button"
               onClick={() => setStatusFilter("realizados")}
-              className={`px-3 py-1.5 rounded-[6px] font-medium transition-all cursor-pointer ${
-                statusFilter === "realizados"
+              className={`px-3 py-1.5 rounded-[6px] font-medium transition-all cursor-pointer ${statusFilter === "realizados"
                   ? "bg-[#245544] text-white shadow-2xs"
                   : "text-[#4D5B54] dark:text-stone-300 hover:text-[#203D34]"
-              }`}
+                }`}
             >
               Realizados ·{" "}
               {expenses.filter((e) => e.status === "realizado").length}
@@ -588,11 +702,10 @@ export function BudgetView({
             <button
               type="button"
               onClick={() => setStatusFilter("proyectados")}
-              className={`px-3 py-1.5 rounded-[6px] font-medium transition-all cursor-pointer ${
-                statusFilter === "proyectados"
+              className={`px-3 py-1.5 rounded-[6px] font-medium transition-all cursor-pointer ${statusFilter === "proyectados"
                   ? "bg-[#245544] text-white shadow-2xs"
                   : "text-[#4D5B54] dark:text-stone-300 hover:text-[#203D34]"
-              }`}
+                }`}
             >
               Proyectados ·{" "}
               {expenses.filter((e) => e.status === "proyectado").length}
@@ -630,15 +743,36 @@ export function BudgetView({
                   {exp.categoryLabel}
                 </span>
 
-                <span
-                  className={`px-2 py-0.5 rounded-[4px] text-[10px] font-semibold ${
-                    exp.status === "realizado"
-                      ? "bg-[#E8EFEA] text-[#245544] dark:bg-stone-800 dark:text-[#A7F3D0]"
-                      : "bg-[#F5ECDD] text-[#836035] dark:bg-stone-800 dark:text-amber-300"
-                  }`}
-                >
-                  {exp.status === "realizado" ? "✓ Realizado" : "Proyectado"}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleExpenseStatus(exp.id)}
+                    title={
+                      exp.status === "realizado"
+                        ? "Hacer clic para marcar como proyectado (pendiente)"
+                        : "Hacer clic para marcar como realizado (aprobado)"
+                    }
+                    className={`px-2 py-0.5 rounded-[4px] text-[10px] font-semibold cursor-pointer transition-all hover:scale-105 ${exp.status === "realizado"
+                        ? "bg-[#E8EFEA] text-[#245544] dark:bg-stone-800 dark:text-[#A7F3D0]"
+                        : "bg-[#F5ECDD] text-[#836035] dark:bg-stone-800 dark:text-amber-300"
+                      }`}
+                  >
+                    {exp.status === "realizado" ? "✓ Realizado" : "Proyectado"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteExpense(exp.id)}
+                    title="Eliminar gasto"
+                    aria-label="Eliminar gasto"
+                    className="p-1 rounded-full text-stone-400 hover:text-red-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Title & Description */}
@@ -654,11 +788,10 @@ export function BudgetView({
               {/* Amount */}
               <div className="flex items-baseline justify-between pt-2">
                 <span
-                  className={`font-serif text-2xl font-normal ${
-                    exp.status === "realizado"
+                  className={`font-serif text-2xl font-normal ${exp.status === "realizado"
                       ? "text-[#203D34] dark:text-stone-100"
                       : "text-[#836035] dark:text-amber-300"
-                  }`}
+                    }`}
                 >
                   {exp.amount.toLocaleString("es-ES")} €
                 </span>
@@ -680,11 +813,10 @@ export function BudgetView({
                       Añadido por {exp.author}
                     </span>
                     <span
-                      className={`font-medium ${
-                        exp.isPaid
+                      className={`font-medium ${exp.isPaid
                           ? "text-[#245544] dark:text-[#A7F3D0]"
                           : "text-[#836035] dark:text-amber-300"
-                      }`}
+                        }`}
                     >
                       {exp.isPaid ? `Pagado por ${exp.payer}` : "Pendiente"}
                     </span>

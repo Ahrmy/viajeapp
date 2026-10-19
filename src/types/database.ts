@@ -54,6 +54,7 @@ export interface Database {
           creado_por?: string
           creado_en?: string
         }
+        Relationships: []
       }
       viaje_miembros: {
         Row: {
@@ -77,6 +78,7 @@ export interface Database {
           rol?: RolMiembro
           invitado_en?: string
         }
+        Relationships: []
       }
       ciudades: {
         Row: {
@@ -103,6 +105,7 @@ export interface Database {
           orden?: number
           creado_en?: string
         }
+        Relationships: []
       }
       actividades: {
         Row: {
@@ -129,6 +132,7 @@ export interface Database {
           costo_estimado?: number | null
           creado_en?: string
         }
+        Relationships: []
       }
       hoteles: {
         Row: {
@@ -158,6 +162,7 @@ export interface Database {
           reservado?: boolean
           creado_en?: string
         }
+        Relationships: []
       }
       transportes: {
         Row: {
@@ -193,6 +198,7 @@ export interface Database {
           reservado?: boolean
           creado_en?: string
         }
+        Relationships: []
       }
       tareas: {
         Row: {
@@ -225,6 +231,7 @@ export interface Database {
           vencimiento?: string | null
           creado_en?: string
         }
+        Relationships: []
       }
       gastos: {
         Row: {
@@ -266,6 +273,7 @@ export interface Database {
           referencia_actividad_id?: string | null
           creado_en?: string
         }
+        Relationships: []
       }
     }
     Views: {
@@ -279,6 +287,7 @@ export interface Database {
           disponible: number
           porcentaje_gastado: number
         }
+        Relationships: []
       }
     }
     Functions: {
@@ -295,6 +304,9 @@ export interface Database {
       rol_miembro: RolMiembro
       estado_gasto: EstadoGasto
       tipo_transporte: TipoTransporte
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
 }

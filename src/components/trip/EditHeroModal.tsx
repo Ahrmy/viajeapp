@@ -58,19 +58,19 @@ export function EditHeroModal({
   )
   const [title, setTitle] = useState(
     currentData?.title ||
-      (mode === "create"
-        ? "Una nueva historia por escribir."
-        : "Hay viajes que ya se sienten cerca.")
+    (mode === "create"
+      ? "Una nueva historia por escribir."
+      : "Hay viajes que ya se sienten cerca.")
   )
   const [subtitle, setSubtitle] = useState(
     currentData?.subtitle ||
-      (mode === "create"
-        ? "Explorando rincones y creando recuerdos juntos."
-        : "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.")
+    (mode === "create"
+      ? "Explorando rincones y creando recuerdos juntos."
+      : "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.")
   )
   const [image, setImage] = useState(
     currentData?.image ||
-      (mode === "create" ? PRESET_PHOTOS[1].url : PRESET_PHOTOS[0].url)
+    (mode === "create" ? PRESET_PHOTOS[1].url : PRESET_PHOTOS[0].url)
   )
   const [locationBadge, setLocationBadge] = useState(
     currentData?.locationBadge || (mode === "create" ? "" : "Lisboa, Portugal")
@@ -84,7 +84,7 @@ export function EditHeroModal({
         setTitle(currentData?.title || "Una nueva historia por escribir.")
         setSubtitle(
           currentData?.subtitle ||
-            "Explorando rincones y creando recuerdos juntos."
+          "Explorando rincones y creando recuerdos juntos."
         )
         setImage(currentData?.image || PRESET_PHOTOS[1].url)
         setLocationBadge(currentData?.locationBadge || "")
@@ -225,6 +225,48 @@ export function EditHeroModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Plantillas sugeridas en modo crear */}
+          {mode === "create" && (
+            <div className="flex flex-col gap-1.5 p-3 rounded-[10px] bg-[#E8EFEA]/60 dark:bg-emerald-950/30 border border-[#CCD2CA] dark:border-stone-700">
+              <span className="text-[11px] font-semibold text-[#245544] dark:text-[#A7F3D0] flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#245544] dark:bg-emerald-400" />
+                <span>Inspiración rápida de viaje:</span>
+              </span>
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTripName("Portugal en familia")
+                    setDates("6–13 nov 2026")
+                    setTitle("Hay viajes que ya se sienten cerca.")
+                    setSubtitle("Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.")
+                    setImage("/images/lisboa-panoramica.png")
+                    setLocationBadge("Lisboa, Portugal")
+                  }}
+                  className="px-2.5 py-1 rounded-full text-xs font-medium border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#4D5B54] dark:text-stone-300 hover:border-[#245544] transition-all cursor-pointer shadow-2xs flex items-center gap-1"
+                >
+                  <span>🇵🇹</span>
+                  <span>Portugal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTripName("Un verano en Menorca")
+                    setDates("12–19 jul 2026")
+                    setTitle("Calas turquesas y brisa mediterránea.")
+                    setSubtitle("Ciutadella, Fornells y senderos mágicos en familia.")
+                    setImage("/images/family-costa-brava.png")
+                    setLocationBadge("Menorca, España")
+                  }}
+                  className="px-2.5 py-1 rounded-full text-xs font-medium border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#4D5B54] dark:text-stone-300 hover:border-[#245544] transition-all cursor-pointer shadow-2xs flex items-center gap-1"
+                >
+                  <span>🏖️</span>
+                  <span>Menorca</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Nombre del viaje */}
           <div className="flex flex-col gap-1.5 p-3 rounded-[10px] bg-[#F7F5F0] dark:bg-stone-800/60 border border-[#E6E2D8] dark:border-stone-700">
             <Label
@@ -337,11 +379,10 @@ export function EditHeroModal({
                   key={preset.id}
                   type="button"
                   onClick={() => setImage(preset.url)}
-                  className={`relative h-14 rounded-[8px] overflow-hidden border-2 transition-all cursor-pointer ${
-                    image === preset.url
+                  className={`relative h-14 rounded-[8px] overflow-hidden border-2 transition-all cursor-pointer ${image === preset.url
                       ? "border-[#245544] ring-2 ring-[#245544]/20 scale-102"
                       : "border-transparent opacity-75 hover:opacity-100"
-                  }`}
+                    }`}
                 >
                   <img
                     src={preset.url}

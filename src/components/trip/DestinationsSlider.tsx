@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 export interface Destination {
   id: string
@@ -45,18 +45,28 @@ const INITIAL_DESTINATIONS: Destination[] = [
 ]
 
 interface DestinationsSliderProps {
+  destinations?: Destination[]
   onAddDestination?: () => void
   onViewItinerary?: () => void
   onSelectDestination?: (destination: Destination) => void
 }
 
 export function DestinationsSlider({
+  destinations: propsDestinations,
   onAddDestination,
   onViewItinerary,
   onSelectDestination,
 }: DestinationsSliderProps) {
-  const [destinations, setDestinations] =
-    useState<Destination[]>(INITIAL_DESTINATIONS)
+  const [destinations, setDestinations] = useState<Destination[]>(
+    propsDestinations && propsDestinations.length > 0 ? propsDestinations : INITIAL_DESTINATIONS
+  )
+
+  // Update when prop changes
+  useEffect(() => {
+    if (propsDestinations && propsDestinations.length > 0) {
+      setDestinations(propsDestinations)
+    }
+  }, [propsDestinations])
 
   const toggleFavorite = (id: string) => {
     setDestinations((prev) =>

@@ -1,9 +1,9 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-interface TaskItem {
+export interface TaskItem {
   id: string
   title: string
   subtitle: string
@@ -36,16 +36,34 @@ const INITIAL_TASKS: TaskItem[] = [
 ]
 
 interface UpcomingTasksCardProps {
+  tasks?: TaskItem[]
+  onToggleTask?: (id: string) => void
   onViewAllTasks?: () => void
 }
 
-export function UpcomingTasksCard({ onViewAllTasks }: UpcomingTasksCardProps) {
-  const [tasks, setTasks] = useState<TaskItem[]>(INITIAL_TASKS)
+export function UpcomingTasksCard({
+  tasks: propsTasks,
+  onToggleTask,
+  onViewAllTasks,
+}: UpcomingTasksCardProps) {
+  const [tasks, setTasks] = useState<TaskItem[]>(
+    propsTasks && propsTasks.length > 0 ? propsTasks : INITIAL_TASKS
+  )
+
+  useEffect(() => {
+    if (propsTasks) {
+      setTasks(propsTasks)
+    }
+  }, [propsTasks])
 
   const toggleTask = (id: string) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
-    )
+    if (onToggleTask) {
+      onToggleTask(id)
+    } else {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
+      )
+    }
   }
 
   const pendingCount = tasks.filter((t) => !t.completed).length

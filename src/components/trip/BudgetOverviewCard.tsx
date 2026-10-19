@@ -2,14 +2,20 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 
 interface BudgetOverviewCardProps {
+  spent?: number
+  total?: number
   onViewBudget?: () => void
 }
 
-export function BudgetOverviewCard({ onViewBudget }: BudgetOverviewCardProps) {
-  const spent = 1840
-  const total = 3200
-  const percentage = Math.round((spent / total) * 1000) / 10
-  const remaining = total - spent
+export function BudgetOverviewCard({
+  spent: propSpent = 1840,
+  total: propTotal = 3200,
+  onViewBudget,
+}: BudgetOverviewCardProps) {
+  const spent = propSpent
+  const total = propTotal > 0 ? propTotal : 3200
+  const percentage = Math.min(100, Math.round((spent / total) * 1000) / 10)
+  const remaining = Math.max(0, total - spent)
 
   return (
     <Card className="flex flex-col justify-between p-6 rounded-[14px] bg-white dark:bg-stone-900 border-[#DFE2DA] dark:border-stone-800 shadow-2xs">

@@ -1,5 +1,6 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { tripService } from "@/lib/tripService"
 
 interface CityDetailViewProps {
   cityId?: string
@@ -10,6 +11,7 @@ interface CityDetailViewProps {
 }
 
 export function CityDetailView({
+  cityId,
   cityName = "Lisboa",
   tripName = "Portugal en familia",
   onBack,
@@ -38,17 +40,48 @@ export function CityDetailView({
     Array<{ time: string; title: string; location: string }>
   >([])
 
-  const handleSaveActivity = (e: React.FormEvent) => {
+  // Cargar actividades de Supabase para esta ciudad si existen
+  useEffect(() => {
+    if (!cityId) return
+    let isMounted = true
+    tripService.getCityDetails(cityId).then((details) => {
+      if (!isMounted) return
+      if (details.activities && details.activities.length > 0) {
+        const extra = details.activities.map((a, idx) => ({
+          time: a.fecha ? `${10 + (idx % 8)}:00` : "17:00",
+          title: a.titulo,
+          location: `${cityName} · Plan en familia`,
+        }))
+        setDay2ExtraActivities(extra)
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [cityId, cityName])
+
+  const handleSaveActivity = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newActivityTitle.trim()) return
+    const title = newActivityTitle.trim()
+    const loc = newActivityLocation.trim() || `${cityName} · 1 h`
+
     setDay2ExtraActivities((prev) => [
       ...prev,
       {
         time: newActivityTime,
-        title: newActivityTitle.trim(),
-        location: newActivityLocation.trim() || "Lisboa · 1 h",
+        title,
+        location: loc,
       },
     ])
+
+    if (cityId) {
+      await tripService.createActivity({
+        ciudad_id: cityId,
+        titulo: title,
+      })
+    }
+
     setNewActivityTitle("")
     setNewActivityLocation("")
     setIsActivityFormOpen(false)
@@ -274,11 +307,10 @@ export function CityDetailView({
           {/* Option 1: Tren */}
           <div
             onClick={() => setSelectedTransport("train")}
-            className={`p-4 sm:p-5 rounded-[12px] bg-white dark:bg-stone-900 border transition-all cursor-pointer flex flex-col justify-between gap-4 ${
-              selectedTransport === "train"
+            className={`p-4 sm:p-5 rounded-[12px] bg-white dark:bg-stone-900 border transition-all cursor-pointer flex flex-col justify-between gap-4 ${selectedTransport === "train"
                 ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
                 : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -310,22 +342,20 @@ export function CityDetailView({
 
               <div className="flex items-center gap-1.5">
                 <span
-                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                    selectedTransport === "train"
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedTransport === "train"
                       ? "border-[#245544] bg-[#245544]"
                       : "border-stone-300 dark:border-stone-600"
-                  }`}
+                    }`}
                 >
                   {selectedTransport === "train" && (
                     <span className="w-1.5 h-1.5 rounded-full bg-white" />
                   )}
                 </span>
                 <span
-                  className={`text-xs font-semibold ${
-                    selectedTransport === "train"
+                  className={`text-xs font-semibold ${selectedTransport === "train"
                       ? "text-[#245544] dark:text-[#A7F3D0]"
                       : "text-stone-500"
-                  }`}
+                    }`}
                 >
                   {selectedTransport === "train" ? "Preferido" : "Elegir"}
                 </span>
@@ -389,11 +419,10 @@ export function CityDetailView({
           {/* Option 2: Bus */}
           <div
             onClick={() => setSelectedTransport("bus")}
-            className={`p-4 sm:p-5 rounded-[12px] bg-white dark:bg-stone-900 border transition-all cursor-pointer flex flex-col justify-between gap-4 ${
-              selectedTransport === "bus"
+            className={`p-4 sm:p-5 rounded-[12px] bg-white dark:bg-stone-900 border transition-all cursor-pointer flex flex-col justify-between gap-4 ${selectedTransport === "bus"
                 ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
                 : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -425,22 +454,20 @@ export function CityDetailView({
 
               <div className="flex items-center gap-1.5">
                 <span
-                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                    selectedTransport === "bus"
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedTransport === "bus"
                       ? "border-[#245544] bg-[#245544]"
                       : "border-stone-300 dark:border-stone-600"
-                  }`}
+                    }`}
                 >
                   {selectedTransport === "bus" && (
                     <span className="w-1.5 h-1.5 rounded-full bg-white" />
                   )}
                 </span>
                 <span
-                  className={`text-xs font-semibold ${
-                    selectedTransport === "bus"
+                  className={`text-xs font-semibold ${selectedTransport === "bus"
                       ? "text-[#245544] dark:text-[#A7F3D0]"
                       : "text-stone-500"
-                  }`}
+                    }`}
                 >
                   {selectedTransport === "bus" ? "Preferido" : "Elegir"}
                 </span>
@@ -550,11 +577,10 @@ export function CityDetailView({
           {/* Hotel 1: Lisboa Pessoa Hotel (Selected) */}
           <div
             onClick={() => setSelectedHotel("pessoa")}
-            className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all cursor-pointer ${
-              selectedHotel === "pessoa"
+            className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all cursor-pointer ${selectedHotel === "pessoa"
                 ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
                 : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-            }`}
+              }`}
           >
             <div className="relative h-44 w-full bg-stone-100 dark:bg-stone-800">
               <img
@@ -564,11 +590,10 @@ export function CityDetailView({
               />
               <div className="absolute top-2.5 left-2.5">
                 <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs ${
-                    selectedHotel === "pessoa"
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs ${selectedHotel === "pessoa"
                       ? "bg-[#245544] text-white"
                       : "bg-white/90 text-stone-700"
-                  }`}
+                    }`}
                 >
                   {selectedHotel === "pessoa"
                     ? "✓ Alojamiento seleccionado"
@@ -618,11 +643,10 @@ export function CityDetailView({
           {/* Hotel 2: My Story Hotel Rossio */}
           <div
             onClick={() => setSelectedHotel("mystory")}
-            className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all cursor-pointer ${
-              selectedHotel === "mystory"
+            className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all cursor-pointer ${selectedHotel === "mystory"
                 ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
                 : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-            }`}
+              }`}
           >
             <div className="relative h-44 w-full bg-stone-100 dark:bg-stone-800">
               <img
@@ -632,11 +656,10 @@ export function CityDetailView({
               />
               <div className="absolute top-2.5 left-2.5">
                 <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs ${
-                    selectedHotel === "mystory"
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs ${selectedHotel === "mystory"
                       ? "bg-[#245544] text-white"
                       : "bg-white/90 text-stone-700"
-                  }`}
+                    }`}
                 >
                   {selectedHotel === "mystory"
                     ? "✓ Alojamiento seleccionado"
@@ -686,11 +709,10 @@ export function CityDetailView({
           {/* Hotel 3: JAM Lisbon */}
           <div
             onClick={() => setSelectedHotel("jam")}
-            className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all cursor-pointer ${
-              selectedHotel === "jam"
+            className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all cursor-pointer ${selectedHotel === "jam"
                 ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
                 : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-            }`}
+              }`}
           >
             <div className="relative h-44 w-full bg-stone-100 dark:bg-stone-800">
               <img
@@ -700,11 +722,10 @@ export function CityDetailView({
               />
               <div className="absolute top-2.5 left-2.5">
                 <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs ${
-                    selectedHotel === "jam"
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs ${selectedHotel === "jam"
                       ? "bg-[#245544] text-white"
                       : "bg-white/90 text-stone-700"
-                  }`}
+                    }`}
                 >
                   {selectedHotel === "jam"
                     ? "✓ Alojamiento seleccionado"

@@ -34,7 +34,11 @@ export function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      const newUser = session?.user ?? null
+      setUser(newUser)
+      if (newUser) {
+        setActiveView("overview")
+      }
       setLoading(false)
     })
 
@@ -84,13 +88,15 @@ export function App() {
               : "text-[#4D5B54] dark:text-stone-300 hover:text-[#203D34] dark:hover:text-white"
           }`}
         >
-          Login / Registro
+          {user ? "Mi Cuenta" : "Login / Registro"}
         </button>
       </div>
 
       {activeView === "overview" ? (
         <TripOverview
+          user={user}
           userName={userName}
+          onNavigateToAuth={() => setActiveView("auth")}
           onSignOut={
             user
               ? () => {
