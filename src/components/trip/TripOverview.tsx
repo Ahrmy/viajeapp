@@ -10,7 +10,8 @@ import { UpcomingTasksCard, type TaskItem } from "./UpcomingTasksCard"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
-import { tripService, DEMO_CITIES, DEMO_TASKS } from "@/lib/tripService"
+import { tripService, DEMO_CITIES, DEMO_TASKS, DEFAULT_COVER_IMAGE } from "@/lib/tripService"
+import { isSupabaseConfigured } from "@/supabaseClient"
 import type { User } from "@supabase/supabase-js"
 import type { Ciudad, Tarea } from "@/types/database"
 
@@ -163,7 +164,7 @@ export function TripOverview({
           dates: formatDateRange(v.fecha_inicio, v.fecha_fin),
           title: v.titulo_cabecero || "Hay viajes que ya se sienten cerca.",
           subtitle: v.subtitulo_cabecero || "Un camino para disfrutar juntos.",
-          image: v.foto_portada || "/images/lisboa-panoramica.png",
+          image: v.foto_portada || DEFAULT_COVER_IMAGE,
           locationBadge: v.etiqueta_ubicacion || v.nombre,
         }
       })
@@ -277,6 +278,13 @@ export function TripOverview({
     const newName = data.tripName?.trim() || "Nuevo viaje familiar"
     const newDates = data.dates?.trim() || "Fechas por definir"
 
+    // Sin sesión no se puede guardar en Supabase (RLS exige auth.uid())
+    if (isSupabaseConfigured && !user?.id) {
+      setIsCreateTripModalOpen(false)
+      onNavigateToAuth?.()
+      return
+    }
+
     let createdId = `trip-${Date.now()}`
 
     if (user?.id) {
@@ -285,13 +293,16 @@ export function TripOverview({
         creado_por: user.id,
         titulo_cabecero: data.title || "Una nueva historia por escribir.",
         subtitulo_cabecero: data.subtitle || "Explorando juntos nuevos rincones.",
-        foto_portada: data.image || "/images/family-costa-brava.png",
+        foto_portada: data.image || DEFAULT_COVER_IMAGE,
         etiqueta_ubicacion: data.locationBadge || newName,
         presupuesto_total: 2500,
       })
-      if (res.data?.id) {
-        createdId = res.data.id
+      if (res.error || !res.data?.id) {
+        console.error("No se pudo guardar el viaje en Supabase:", res.error)
+        alert(`No se pudo guardar el viaje: ${res.error ?? "error desconocido"}`)
+        return
       }
+      createdId = res.data.id
     }
 
     const newTrip: TripOption = {
@@ -307,7 +318,7 @@ export function TripOverview({
         dates: newDates,
         title: data.title || "Una nueva historia por escribir.",
         subtitle: data.subtitle || "Explorando juntos nuevos rincones.",
-        image: data.image || "/images/family-costa-brava.png",
+        image: data.image || DEFAULT_COVER_IMAGE,
         locationBadge: data.locationBadge || newName,
       },
     }))
@@ -316,6 +327,31 @@ export function TripOverview({
     setCurrentTrip(newTrip)
     setInlineTitleValue(newName)
     setIsCreateTripModalOpen(false)
+  }
+
+  const handleDeleteTrip = async () => {
+    const tripId = currentTrip.id
+    const res = await tripService.deleteTrip(tripId)
+    if (!res.success) {
+      console.error("No se pudo eliminar el viaje en Supabase:", res.error)
+      alert(`No se pudo eliminar el viaje: ${res.error ?? "error desconocido"}`)
+      return
+    }
+
+    const remaining = tripsList.filter((t) => t.id !== tripId)
+    setTripsList(remaining)
+    setTripHeroes((prev) => {
+      const next = { ...prev }
+      delete next[tripId]
+      return next
+    })
+
+    const nextTrip = remaining[0]
+    if (nextTrip) {
+      setCurrentTrip(nextTrip)
+      setInlineTitleValue(nextTrip.name)
+    }
+    setSelectedCityId(null)
   }
 
   const handleToggleTask = async (id: string) => {
@@ -467,6 +503,7 @@ export function TripOverview({
           trips={tripsList}
           onEditCurrentTrip={() => setIsEditHeroModalOpen(true)}
           onNewTrip={() => setIsCreateTripModalOpen(true)}
+          onDeleteCurrentTrip={handleDeleteTrip}
         />
       </div>
 

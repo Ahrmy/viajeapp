@@ -21,6 +21,7 @@ interface SidebarProps {
   onTripChange: (trip: TripOption) => void
   onNewTrip?: () => void
   onEditCurrentTrip?: () => void
+  onDeleteCurrentTrip?: () => void | Promise<void>
   onSignOut?: () => void
   userName?: string
   trips?: TripOption[]
@@ -33,11 +34,36 @@ export function Sidebar({
   onTripChange,
   onNewTrip,
   onEditCurrentTrip,
+  onDeleteCurrentTrip,
   onSignOut,
   userName = "Clara López",
   trips = TRIPS,
 }: SidebarProps) {
   const [isTripMenuOpen, setIsTripMenuOpen] = useState(false)
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const shortTripName =
+    currentTrip.name.length > 11
+      ? `${currentTrip.name.slice(0, 11).trimEnd()}...`
+      : currentTrip.name
+  const canDelete = trips.length > 1
+
+  const closeTripMenu = () => {
+    setIsTripMenuOpen(false)
+    setIsConfirmingDelete(false)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!onDeleteCurrentTrip) return
+    setIsDeleting(true)
+    try {
+      await onDeleteCurrentTrip()
+    } finally {
+      setIsDeleting(false)
+      closeTripMenu()
+    }
+  }
 
   const navItems = [
     {
@@ -145,7 +171,9 @@ export function Sidebar({
           <div className="relative">
             <button
               type="button"
-              onClick={() => setIsTripMenuOpen(!isTripMenuOpen)}
+              onClick={() =>
+                isTripMenuOpen ? closeTripMenu() : setIsTripMenuOpen(true)
+              }
               className="w-full flex items-center justify-between p-3 rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 shadow-2xs hover:border-[#245544] transition-all cursor-pointer text-left"
             >
               <div className="flex items-center gap-2.5 overflow-hidden">
@@ -197,7 +225,7 @@ export function Sidebar({
                     type="button"
                     onClick={() => {
                       onTripChange(trip)
-                      setIsTripMenuOpen(false)
+                      closeTripMenu()
                     }}
                     className={`flex items-center justify-between p-2 rounded-[6px] text-left transition-colors cursor-pointer ${
                       trip.id === currentTrip.id
@@ -238,7 +266,7 @@ export function Sidebar({
                   <button
                     type="button"
                     onClick={() => {
-                      setIsTripMenuOpen(false)
+                      closeTripMenu()
                       onEditCurrentTrip()
                     }}
                     title={`Editar "${currentTrip.name}"`}
@@ -259,19 +287,81 @@ export function Sidebar({
                       <path d="m15 5 4 4" />
                     </svg>
                     <span className="truncate">
-                      Editar &quot;
-                      {currentTrip.name.length > 11
-                        ? `${currentTrip.name.slice(0, 11).trimEnd()}...`
-                        : currentTrip.name}
-                      &quot;
+                      Editar &quot;{shortTripName}&quot;
                     </span>
                   </button>
                 )}
 
+                {onDeleteCurrentTrip &&
+                  (isConfirmingDelete ? (
+                    <div className="flex flex-col gap-2 p-2 rounded-[6px] bg-[#FBEDEA] dark:bg-red-950/40 border border-[#F1CFC8] dark:border-red-900/60 animate-in fade-in duration-150">
+                      <span className="text-[11px] leading-snug text-[#8A2E1F] dark:text-red-200">
+                        ¿Eliminar &quot;{shortTripName}&quot;? Se borrarán sus
+                        ciudades, tareas y gastos.
+                      </span>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          id="confirm-delete-trip"
+                          disabled={isDeleting}
+                          onClick={handleConfirmDelete}
+                          className="flex-1 px-2 py-1 rounded-[5px] text-[11px] font-semibold text-white bg-[#B23A26] hover:bg-[#992F1E] disabled:opacity-60 transition-colors cursor-pointer"
+                        >
+                          {isDeleting ? "Eliminando..." : "Eliminar"}
+                        </button>
+                        <button
+                          type="button"
+                          id="cancel-delete-trip"
+                          disabled={isDeleting}
+                          onClick={() => setIsConfirmingDelete(false)}
+                          className="flex-1 px-2 py-1 rounded-[5px] text-[11px] font-medium text-[#4D5B54] dark:text-stone-200 bg-white dark:bg-stone-800 border border-[#E6E2D8] dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      id="delete-current-trip"
+                      disabled={!canDelete}
+                      onClick={() => setIsConfirmingDelete(true)}
+                      title={
+                        canDelete
+                          ? `Eliminar "${currentTrip.name}"`
+                          : "No puedes eliminar tu único viaje"
+                      }
+                      className="flex items-center gap-2 p-2 rounded-[6px] text-xs font-medium text-[#B23A26] hover:bg-[#FBEDEA] dark:text-red-300 dark:hover:bg-red-950/40 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors cursor-pointer whitespace-nowrap overflow-hidden"
+                    >
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="shrink-0"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <line x1="10" y1="11" x2="10" y2="17" />
+                        <line x1="14" y1="11" x2="14" y2="17" />
+                      </svg>
+                      <span className="truncate">
+                        Eliminar &quot;{shortTripName}&quot;
+                      </span>
+                    </button>
+                  ))}
+
+                <div className="my-1 border-t border-[#DFE2DA] dark:border-stone-800" />
+
                 <button
                   type="button"
                   onClick={() => {
-                    setIsTripMenuOpen(false)
+                    closeTripMenu()
                     onNewTrip?.()
                   }}
                   className="flex items-center gap-2 p-2 rounded-[6px] text-xs font-semibold text-[#245544] hover:bg-[#E8EFEA] dark:text-emerald-400 dark:hover:bg-stone-800 transition-colors cursor-pointer"

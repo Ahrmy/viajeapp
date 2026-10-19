@@ -174,8 +174,10 @@ ALTER TABLE tareas          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gastos          ENABLE ROW LEVEL SECURITY;
 
 -- ---------- RLS: viajes ----------
+-- Incluye al creador: INSERT ... RETURNING (insert().select()) evalúa esta
+-- política antes de que el trigger AFTER INSERT lo añada como owner.
 CREATE POLICY "ver viaje si soy miembro"
-  ON viajes FOR SELECT USING (es_miembro(id));
+  ON viajes FOR SELECT USING (es_miembro(id) OR creado_por = auth.uid());
 
 CREATE POLICY "crear viaje (soy el creador)"
   ON viajes FOR INSERT

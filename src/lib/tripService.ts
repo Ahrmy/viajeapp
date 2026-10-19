@@ -22,6 +22,13 @@ import type {
 // ============================================================
 export const DEMO_TRIP_ID = "demo-portugal-2026";
 
+// Portada por defecto cuando el usuario no sube ninguna imagen
+export const DEFAULT_COVER_IMAGE = "/images/default-cover.jpg";
+
+// Bucket de Supabase Storage para las portadas de los viajes
+export const COVER_BUCKET = "portadas";
+export const MAX_COVER_SIZE_MB = 5;
+
 export const DEMO_TRIPS: Viaje[] = [
   {
     id: DEMO_TRIP_ID,
@@ -212,6 +219,60 @@ export const DEMO_EXPENSES: Gasto[] = [
 
 export const tripService = {
   /**
+   * Sube una imagen de portada a Supabase Storage y devuelve su URL pública.
+   * Ruta: portadas/<user_id>/<uuid>.<ext> (las políticas exigen la carpeta del usuario).
+   */
+  async uploadCoverImage(
+    file: File,
+  ): Promise<{ url: string | null; error?: string }> {
+    if (!file.type.startsWith("image/")) {
+      return { url: null, error: "El archivo debe ser una imagen." };
+    }
+    if (file.size > MAX_COVER_SIZE_MB * 1024 * 1024) {
+      return {
+        url: null,
+        error: `La imagen no puede superar ${MAX_COVER_SIZE_MB} MB.`,
+      };
+    }
+
+    if (!isSupabaseConfigured) {
+      // Modo demo: vista previa local (no persiste al recargar)
+      return { url: URL.createObjectURL(file) };
+    }
+
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const userId = auth.user?.id;
+      if (!userId) {
+        return { url: null, error: "Inicia sesión para subir una imagen." };
+      }
+
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from(COVER_BUCKET)
+        .upload(path, file, {
+          cacheControl: "31536000",
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (error) {
+        console.error("Error subiendo portada:", error.message);
+        return { url: null, error: error.message };
+      }
+
+      const { data } = supabase.storage.from(COVER_BUCKET).getPublicUrl(path);
+      return { url: data.publicUrl };
+    } catch (err: unknown) {
+      return {
+        url: null,
+        error: err instanceof Error ? err.message : "Error al subir la imagen",
+      };
+    }
+  },
+  /**
    * Obtiene todos los viajes del usuario actual desde Supabase.
    */
   async getTrips(
@@ -332,13 +393,27 @@ export const tripService = {
   async deleteTrip(
     tripId: string,
   ): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured || tripId.startsWith("demo-")) {
+    if (
+      !isSupabaseConfigured ||
+      tripId.startsWith("demo-") ||
+      tripId.startsWith("trip-")
+    ) {
       return { success: true };
     }
 
     try {
-      const { error } = await supabase.from("viajes").delete().eq("id", tripId);
+      const { data, error } = await supabase
+        .from("viajes")
+        .delete()
+        .eq("id", tripId)
+        .select("id");
       if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return {
+          success: false,
+          error: "No tienes permiso para eliminar este viaje (solo el owner puede).",
+        };
+      }
       return { success: true };
     } catch (err: unknown) {
       return {

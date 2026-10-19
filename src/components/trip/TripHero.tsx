@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { EditHeroModal, type HeroData } from "./EditHeroModal"
+import { DEFAULT_COVER_IMAGE } from "@/lib/tripService"
 
 interface TripHeroProps {
   tripName?: string
@@ -28,7 +29,7 @@ export function TripHero({
     subtitle:
       initialData?.subtitle ||
       "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.",
-    image: initialData?.image || "/images/lisboa-panoramica.png",
+    image: initialData?.image || DEFAULT_COVER_IMAGE,
     locationBadge: initialData?.locationBadge || "Lisboa, Portugal",
   })
 
@@ -43,7 +44,7 @@ export function TripHero({
       subtitle:
         initialData?.subtitle ||
         "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.",
-      image: initialData?.image || "/images/lisboa-panoramica.png",
+      image: initialData?.image || DEFAULT_COVER_IMAGE,
       locationBadge: initialData?.locationBadge || "Lisboa, Portugal",
     })
   }, [tripName, initialData])
