@@ -11,6 +11,7 @@ interface CityDetailViewProps {
   travelersCount?: number
   isAdmin?: boolean
   onBack: () => void
+  onBackToOverview?: () => void
   onSelectCity?: (cityId: string) => void
   onEditCity?: (city: Destination) => void
 }
@@ -23,6 +24,7 @@ export function CityDetailView({
   travelersCount = 4,
   isAdmin = true,
   onBack,
+  onBackToOverview,
   onSelectCity,
   onEditCity,
 }: CityDetailViewProps) {
@@ -115,7 +117,7 @@ export function CityDetailView({
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
-            onClick={onBack}
+            onClick={onBackToOverview || onBack}
             className="hover:text-[#203D34] dark:hover:text-stone-200 transition-colors cursor-pointer"
           >
             {tripName}

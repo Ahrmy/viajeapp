@@ -13,6 +13,7 @@ import {
 } from "./CreateDestinationModal"
 import { DestinationsSlider, type Destination } from "./DestinationsSlider"
 import { CityDetailView } from "./CityDetailView"
+import { ItineraryView } from "./ItineraryView"
 import { BudgetView } from "./BudgetView"
 import { BudgetOverviewCard } from "./BudgetOverviewCard"
 import { UpcomingTasksCard, type TaskItem } from "./UpcomingTasksCard"
@@ -615,19 +616,7 @@ export function TripOverview({
           activeSection={selectedCityId ? "itinerario" : activeSection}
           onSectionChange={(s) => {
             setActiveSection(s)
-            if (s === "general") {
-              setSelectedCityId(null)
-            } else if (s === "itinerario") {
-              const firstCity = destinationsList[0]
-              if (firstCity) {
-                setSelectedCityId(firstCity.id)
-                setSelectedCityName(firstCity.name)
-              } else {
-                setSelectedCityId(null)
-              }
-            } else if (s === "presupuesto") {
-              setSelectedCityId(null)
-            }
+            setSelectedCityId(null)
             setIsMobileMenuOpen(false)
           }}
           currentTrip={currentTrip}
@@ -657,6 +646,10 @@ export function TripOverview({
             isAdmin={isAdmin}
             onBack={() => {
               setSelectedCityId(null)
+              setActiveSection("itinerario")
+            }}
+            onBackToOverview={() => {
+              setSelectedCityId(null)
               setActiveSection("general")
             }}
             onSelectCity={(id) => {
@@ -673,6 +666,51 @@ export function TripOverview({
               setEditingCityData(dest)
               setIsAddDestinationOpen(true)
             }}
+          />
+        ) : activeSection === "itinerario" ? (
+          <ItineraryView
+            trip={currentTrip}
+            heroData={tripHeroes[currentTrip.id]}
+            destinations={destinationsList}
+            travelersCount={tripHeroes[currentTrip.id]?.travelersCount || 4}
+            onBackToOverview={() => setActiveSection("general")}
+            onSelectCity={(id) => {
+              const target = destinationsList.find((d) => d.id === id)
+              if (target) {
+                setSelectedCityId(target.id)
+                setSelectedCityName(target.name)
+              } else {
+                setSelectedCityId(id)
+                setSelectedCityName(id)
+              }
+            }}
+            onAddDestination={() => {
+              setEditingCityData(null)
+              setIsAddDestinationOpen(true)
+            }}
+            onEditCity={(dest) => {
+              setEditingCityData(dest)
+              setIsAddDestinationOpen(true)
+            }}
+            onUpdateDays={async (cityId, days) => {
+              setDestinationsList((prev) =>
+                prev.map((d) =>
+                  d.id === cityId
+                    ? {
+                        ...d,
+                        nights: days,
+                        dates: `${days} ${days === 1 ? "día" : "días"}`,
+                      }
+                    : d
+                )
+              )
+              await tripService.updateCity(cityId, { dias: days })
+            }}
+            onDeleteCity={async (cityId) => {
+              setDestinationsList((prev) => prev.filter((d) => d.id !== cityId))
+              await tripService.deleteCity(cityId)
+            }}
+            onInvite={() => setIsInviteOpen(true)}
           />
         ) : activeSection === "presupuesto" ? (
           <BudgetView
@@ -1102,12 +1140,8 @@ export function TripOverview({
               destinations={destinationsList}
               onAddDestination={() => setIsAddDestinationOpen(true)}
               onViewItinerary={() => {
-                const firstCity = destinationsList[0]
-                if (firstCity) {
-                  setSelectedCityId(firstCity.id)
-                  setSelectedCityName(firstCity.name)
-                  setActiveSection("itinerario")
-                }
+                setSelectedCityId(null)
+                setActiveSection("itinerario")
               }}
               onSelectDestination={(dest) => {
                 setSelectedCityId(dest.id)
