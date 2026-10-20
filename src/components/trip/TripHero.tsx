@@ -28,6 +28,7 @@ export function TripHero({
     dates: initialData?.dates,
     startDate: initialData?.startDate,
     endDate: initialData?.endDate,
+    travelersCount: initialData?.travelersCount,
     title: initialData?.title || "Hay viajes que ya se sienten cerca.",
     subtitle:
       initialData?.subtitle ||
@@ -45,6 +46,7 @@ export function TripHero({
       dates: initialData?.dates,
       startDate: initialData?.startDate,
       endDate: initialData?.endDate,
+      travelersCount: initialData?.travelersCount,
       title: initialData?.title || "Hay viajes que ya se sienten cerca.",
       subtitle:
         initialData?.subtitle ||

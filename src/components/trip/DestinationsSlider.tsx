@@ -9,6 +9,8 @@ export interface Destination {
   isReady: boolean
   statusText: string
   isFavorite: boolean
+  title?: string
+  subtitle?: string
 }
 
 const INITIAL_DESTINATIONS: Destination[] = [

@@ -13,6 +13,7 @@ export interface HeroData {
   dates?: string
   startDate?: string
   endDate?: string
+  travelersCount?: number
   title: string
   subtitle: string
   image: string
@@ -94,6 +95,10 @@ export function EditHeroModal({
   const [startDate, setStartDate] = useState(currentData?.startDate || "")
   const [endDate, setEndDate] = useState(currentData?.endDate || "")
   const [dateError, setDateError] = useState<string | null>(null)
+  const [travelersCount, setTravelersCount] = useState<number | string>(
+    currentData?.travelersCount ?? (mode === "create" ? 2 : 4)
+  )
+  const [travelersError, setTravelersError] = useState<string | null>(null)
   const [title, setTitle] = useState(
     currentData?.title ||
     (mode === "create"
@@ -127,6 +132,7 @@ export function EditHeroModal({
         setTripName(currentData?.tripName || "")
         setStartDate(currentData?.startDate || "")
         setEndDate(currentData?.endDate || "")
+        setTravelersCount(currentData?.travelersCount ?? 2)
         setTitle(currentData?.title || "Una nueva historia por escribir.")
         setSubtitle(
           currentData?.subtitle ||
@@ -138,12 +144,14 @@ export function EditHeroModal({
         setTripName(currentData?.tripName || "Portugal en familia")
         setStartDate(currentData?.startDate || "")
         setEndDate(currentData?.endDate || "")
+        setTravelersCount(currentData?.travelersCount ?? 4)
         setTitle(currentData?.title || "")
         setSubtitle(currentData?.subtitle || "")
         setImage(currentData?.image || "")
         setLocationBadge(currentData?.locationBadge || "Lisboa, Portugal")
       }
       setDateError(null)
+      setTravelersError(null)
       setPendingFile(null)
       setPreviewUrl(null)
       setUploadError(null)
@@ -210,6 +218,17 @@ export function EditHeroModal({
     e.preventDefault()
     if (isUploading) return
 
+    // Validar número de viajeros (obligatorio)
+    const numTravelers =
+      typeof travelersCount === "number"
+        ? travelersCount
+        : parseInt(String(travelersCount).trim(), 10)
+
+    if (isNaN(numTravelers) || numTravelers < 1) {
+      setTravelersError("El número de viajeros es obligatorio (mínimo 1).")
+      return
+    }
+
     // Validar que las fechas no sean anteriores a hoy
     if (startDate && startDate < today) {
       setDateError("La fecha de inicio no puede ser anterior a la fecha actual.")
@@ -249,6 +268,7 @@ export function EditHeroModal({
       dates: calculatedDates,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
+      travelersCount: numTravelers,
       title:
         title.trim() ||
         (mode === "create"
@@ -434,6 +454,96 @@ export function EditHeroModal({
               className="h-10 text-xs font-medium rounded-[8px] border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900"
               autoFocus={mode === "create"}
             />
+          </div>
+
+          {/* Número de viajeros (Obligatorio) */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <Label
+                htmlFor="trip-travelers-count"
+                className="text-xs font-semibold text-[#203D34] dark:text-stone-200 flex items-center gap-1.5"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="text-[#245544] dark:text-[#A7F3D0]"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <span>Número de viajeros</span>
+                <span className="text-[#B23A26] dark:text-red-400">*</span>
+              </Label>
+              <span className="text-[10px] font-semibold text-[#245544] dark:text-[#A7F3D0] bg-[#E8EFEA] dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
+                Obligatorio
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const current = Number(travelersCount) || 1
+                  if (current > 1) {
+                    setTravelersCount(current - 1)
+                    setTravelersError(null)
+                  }
+                }}
+                disabled={Number(travelersCount) <= 1}
+                className="h-10 w-10 shrink-0 flex items-center justify-center rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#203D34] dark:text-stone-200 hover:bg-[#F2EFE9] dark:hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-base transition-colors cursor-pointer"
+                aria-label="Restar viajero"
+              >
+                −
+              </button>
+
+              <Input
+                id="trip-travelers-count"
+                type="number"
+                min={1}
+                max={99}
+                required
+                value={travelersCount}
+                onChange={(e) => {
+                  setTravelersCount(e.target.value)
+                  setTravelersError(null)
+                }}
+                placeholder="Ej. 4"
+                className={`h-10 text-xs font-semibold text-center rounded-[8px] border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-[#203D34] dark:text-stone-100 ${
+                  travelersError
+                    ? "border-[#B23A26] focus-visible:ring-[#B23A26]"
+                    : ""
+                }`}
+              />
+
+              <button
+                type="button"
+                onClick={() => {
+                  const current = Number(travelersCount) || 0
+                  setTravelersCount(current + 1)
+                  setTravelersError(null)
+                }}
+                className="h-10 w-10 shrink-0 flex items-center justify-center rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#203D34] dark:text-stone-200 hover:bg-[#F2EFE9] dark:hover:bg-stone-700 font-semibold text-base transition-colors cursor-pointer"
+                aria-label="Añadir viajero"
+              >
+                +
+              </button>
+            </div>
+
+            {travelersError ? (
+              <p className="text-[11px] text-[#B23A26] dark:text-red-400 font-medium">
+                {travelersError}
+              </p>
+            ) : (
+              <p className="text-[11px] text-[#727B74] dark:text-stone-400">
+                Total de personas que participan en este viaje familiar.
+              </p>
+            )}
           </div>
 
           {/* Fechas del viaje (Inicio y Fin con selector interactivo) */}

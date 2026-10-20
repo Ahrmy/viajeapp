@@ -1,7 +1,16 @@
 import { useState, useEffect, useCallback } from "react"
 import { Sidebar, type TripOption } from "./Sidebar"
 import { TripHero } from "./TripHero"
-import { EditHeroModal, type HeroData, formatDateRange } from "./EditHeroModal"
+import {
+  EditHeroModal,
+  type HeroData,
+  formatDateRange,
+  calculateNights,
+} from "./EditHeroModal"
+import {
+  CreateDestinationModal,
+  type DestinationFormData,
+} from "./CreateDestinationModal"
 import { DestinationsSlider, type Destination } from "./DestinationsSlider"
 import { CityDetailView } from "./CityDetailView"
 import { BudgetView } from "./BudgetView"
@@ -10,7 +19,13 @@ import { UpcomingTasksCard, type TaskItem } from "./UpcomingTasksCard"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
-import { tripService, DEMO_CITIES, DEMO_TASKS, DEFAULT_COVER_IMAGE } from "@/lib/tripService"
+import {
+  tripService,
+  DEMO_CITIES,
+  DEMO_TASKS,
+  DEFAULT_COVER_IMAGE,
+  DEFAULT_DESTINATION_IMAGE,
+} from "@/lib/tripService"
 import { isSupabaseConfigured } from "@/supabaseClient"
 import type { User } from "@supabase/supabase-js"
 import type { Ciudad, Tarea } from "@/types/database"
@@ -55,13 +70,41 @@ function formatDepartureDay(startDate?: string | null, fallback = "6 de noviembr
   }
 }
 
+function getTripDurationBadge(
+  startDate?: string | null,
+  endDate?: string | null,
+  destinations?: Destination[]
+): string {
+  if (startDate && endDate) {
+    const nights = calculateNights(startDate, endDate)
+    if (nights > 0) {
+      const days = nights + 1
+      return `· ${days} ${days === 1 ? "día" : "días"} / ${nights} ${nights === 1 ? "noche" : "noches"}`
+    } else if (startDate === endDate) {
+      return "· 1 día"
+    }
+  }
+
+  if (destinations && destinations.length > 0) {
+    const totalNights = destinations.reduce((acc, d) => acc + (d.nights || 1), 0)
+    const days = totalNights + 1
+    return `· ${days} ${days === 1 ? "día" : "días"} / ${totalNights} ${totalNights === 1 ? "noche" : "noches"}`
+  }
+
+  return ""
+}
+
 function mapCityToDestination(c: Ciudad): Destination {
-  const lower = c.nombre.toLowerCase()
-  let img = "/images/destino-lisboa.png"
-  if (lower.includes("sintra")) img = "/images/destino-sintra.png"
-  else if (lower.includes("oporto") || lower.includes("porto")) img = "/images/destino-oporto.png"
-  else if (lower.includes("menorca") || lower.includes("costa")) img = "/images/family-costa-brava.png"
-  else if (lower.includes("pirineos") || lower.includes("montaña")) img = "/images/costa-brava.jpg"
+  let img = c.foto || ""
+  if (!img) {
+    const lower = c.nombre.toLowerCase()
+    if (lower.includes("sintra")) img = "/images/destino-sintra.png"
+    else if (lower.includes("oporto") || lower.includes("porto")) img = "/images/destino-oporto.png"
+    else if (lower.includes("lisboa")) img = "/images/destino-lisboa.png"
+    else if (lower.includes("menorca") || lower.includes("ciutadella") || lower.includes("fornells")) img = "/images/family-costa-brava.png"
+    else if (lower.includes("pirineos") || lower.includes("benasque") || lower.includes("torla")) img = "/images/costa-brava.jpg"
+    else img = DEFAULT_DESTINATION_IMAGE
+  }
 
   return {
     id: c.id,
@@ -69,6 +112,8 @@ function mapCityToDestination(c: Ciudad): Destination {
     dates: `${c.dias} ${c.dias === 1 ? "día" : "días"}`,
     nights: Math.max(1, c.dias),
     image: img,
+    title: c.titulo_cabecero || undefined,
+    subtitle: c.subtitulo_cabecero || undefined,
     isReady: c.orden === 0,
     statusText: c.orden === 0 ? "Todo listo" : "En progreso",
     isFavorite: true,
@@ -111,7 +156,7 @@ export function TripOverview({
   const [inlineTitleValue, setInlineTitleValue] = useState(tripsList[0].name)
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteSuccess, setInviteSuccess] = useState(false)
-  const [newCityName, setNewCityName] = useState("")
+  const [editingCityData, setEditingCityData] = useState<Destination | null>(null)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
   const [selectedCityName, setSelectedCityName] = useState<string>("Lisboa")
 
@@ -142,6 +187,7 @@ export function TripOverview({
       dates: "6–13 nov 2026",
       startDate: "2026-11-06",
       endDate: "2026-11-13",
+      travelersCount: 4,
       title: "Hay viajes que ya se sienten cerca.",
       subtitle: "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.",
       image: "/images/lisboa-panoramica.png",
@@ -152,6 +198,7 @@ export function TripOverview({
       dates: "12–19 jul 2027",
       startDate: "2027-07-12",
       endDate: "2027-07-19",
+      travelersCount: 4,
       title: "Calas turquesas y brisa mediterránea.",
       subtitle: "Ciutadella, Fornells y senderos mágicos en familia.",
       image: "/images/family-costa-brava.png",
@@ -162,6 +209,7 @@ export function TripOverview({
       dates: "2–5 dic 2026",
       startDate: "2026-12-02",
       endDate: "2026-12-05",
+      travelersCount: 2,
       title: "Naturaleza viva y aire puro de montaña.",
       subtitle: "Senderos verdes, valles y refugios inolvidables.",
       image: "/images/costa-brava.jpg",
@@ -193,6 +241,7 @@ export function TripOverview({
           dates: formatDateRange(v.fecha_inicio, v.fecha_fin),
           startDate: v.fecha_inicio || undefined,
           endDate: v.fecha_fin || undefined,
+          travelersCount: v.num_viajeros || 4,
           title: v.titulo_cabecero || "Hay viajes que ya se sienten cerca.",
           subtitle: v.subtitulo_cabecero || "Un camino para disfrutar juntos.",
           image: v.foto_portada || DEFAULT_COVER_IMAGE,
@@ -300,6 +349,7 @@ export function TripOverview({
           ...data,
           tripName: newName,
           dates: newDates,
+          travelersCount: data.travelersCount || 1,
         },
       }))
 
@@ -308,6 +358,7 @@ export function TripOverview({
         nombre: newName,
         fecha_inicio: data.startDate || null,
         fecha_fin: data.endDate || null,
+        num_viajeros: data.travelersCount || 1,
         titulo_cabecero: data.title,
         subtitulo_cabecero: data.subtitle,
         foto_portada: data.image,
@@ -335,6 +386,7 @@ export function TripOverview({
         creado_por: user.id,
         fecha_inicio: data.startDate || null,
         fecha_fin: data.endDate || null,
+        num_viajeros: data.travelersCount || 1,
         titulo_cabecero: data.title || "Una nueva historia por escribir.",
         subtitulo_cabecero: data.subtitle || "Explorando juntos nuevos rincones.",
         foto_portada: data.image || DEFAULT_COVER_IMAGE,
@@ -363,6 +415,7 @@ export function TripOverview({
         dates: newDates,
         startDate: data.startDate,
         endDate: data.endDate,
+        travelersCount: data.travelersCount || 1,
         title: data.title || "Una nueva historia por escribir.",
         subtitle: data.subtitle || "Explorando juntos nuevos rincones.",
         image: data.image || DEFAULT_COVER_IMAGE,
@@ -415,25 +468,58 @@ export function TripOverview({
     })
   }
 
-  const handleAddDestination = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newCityName.trim()) return
-    const cityName = newCityName.trim()
+  const handleSaveDestination = async (data: DestinationFormData) => {
+    if (editingCityData) {
+      // Editar destino existente
+      await tripService.updateCity(editingCityData.id, {
+        nombre: data.name,
+        dias: data.days,
+        foto: data.image,
+        titulo_cabecero: data.title,
+        subtitulo_cabecero: data.subtitle,
+      })
 
-    const res = await tripService.createCity({
-      viaje_id: currentTrip.id,
-      nombre: cityName,
-      dias: 2,
-      orden: destinationsList.length,
-    })
+      setDestinationsList((prev) =>
+        prev.map((d) =>
+          d.id === editingCityData.id
+            ? {
+                ...d,
+                name: data.name,
+                nights: data.days,
+                dates: `${data.days} ${data.days === 1 ? "día" : "días"}`,
+                image: data.image,
+                title: data.title,
+                subtitle: data.subtitle,
+              }
+            : d
+        )
+      )
 
-    if (res.data) {
-      const newDest = mapCityToDestination(res.data)
-      setDestinationsList((prev) => [...prev, newDest])
+      if (selectedCityId === editingCityData.id) {
+        setSelectedCityName(data.name)
+      }
+
+      setEditingCityData(null)
+      setIsAddDestinationOpen(false)
+    } else {
+      // Crear nuevo destino
+      const res = await tripService.createCity({
+        viaje_id: currentTrip.id,
+        nombre: data.name,
+        dias: data.days,
+        foto: data.image,
+        titulo_cabecero: data.title,
+        subtitulo_cabecero: data.subtitle,
+        orden: destinationsList.length,
+      })
+
+      if (res.data) {
+        const newDest = mapCityToDestination(res.data)
+        setDestinationsList((prev) => [...prev, newDest])
+      }
+
+      setIsAddDestinationOpen(false)
     }
-
-    setNewCityName("")
-    setIsAddDestinationOpen(false)
   }
 
   const { theme, setTheme } = useTheme()
@@ -565,7 +651,10 @@ export function TripOverview({
           <CityDetailView
             cityId={selectedCityId}
             cityName={selectedCityName}
+            cityData={destinationsList.find((d) => d.id === selectedCityId)}
             tripName={currentTrip.name}
+            travelersCount={tripHeroes[currentTrip.id]?.travelersCount || 4}
+            isAdmin={isAdmin}
             onBack={() => {
               setSelectedCityId(null)
               setActiveSection("general")
@@ -579,6 +668,10 @@ export function TripOverview({
                 setSelectedCityId(id)
                 setSelectedCityName(id)
               }
+            }}
+            onEditCity={(dest) => {
+              setEditingCityData(dest)
+              setIsAddDestinationOpen(true)
             }}
           />
         ) : activeSection === "presupuesto" ? (
@@ -881,8 +974,20 @@ export function TripOverview({
               </div>
             </div>
 
-            {/* Essential Trip Metadata Strip */}
-            <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-[#E6E2D8] dark:border-stone-800/80 text-xs select-none">
+            {/* Hero Panorama & 21 Days Countdown with Admin Edit Button */}
+            <TripHero
+              tripName={currentTrip.name}
+              initialData={tripHeroes[currentTrip.id]}
+              daysRemaining={calculateDaysRemaining(tripHeroes[currentTrip.id]?.startDate)}
+              departureDate={formatDepartureDay(tripHeroes[currentTrip.id]?.startDate, currentTrip.dates)}
+              isAdmin={isAdmin}
+              isEditModalOpen={isEditHeroModalOpen}
+              onToggleEditModal={setIsEditHeroModalOpen}
+              onSaveHero={handleSaveHero}
+            />
+
+            {/* Essential Trip Metadata Strip (Debajo del cabecero) */}
+            <div className="flex flex-wrap items-center justify-between gap-4 py-2.5 border-y border-[#E6E2D8] dark:border-stone-800/80 text-xs select-none">
               <div className="flex flex-wrap items-center gap-4 sm:gap-6">
                 <div className="flex items-center gap-2 text-[#4D5B54] dark:text-stone-300">
                   <svg
@@ -899,10 +1004,22 @@ export function TripOverview({
                     <line x1="8" y1="2" x2="8" y2="6" />
                     <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
-                  <span className="font-medium text-[#203D34] dark:text-stone-100">
-                    {currentTrip.dates}
+                  <span className="font-semibold text-[#203D34] dark:text-stone-100">
+                    {tripHeroes[currentTrip.id]?.dates || currentTrip.dates}
                   </span>
-                  <span className="text-[#727B74]">· 8 días / 7 noches</span>
+                  {getTripDurationBadge(
+                    tripHeroes[currentTrip.id]?.startDate,
+                    tripHeroes[currentTrip.id]?.endDate,
+                    destinationsList
+                  ) && (
+                    <span className="text-[#727B74] font-medium">
+                      {getTripDurationBadge(
+                        tripHeroes[currentTrip.id]?.startDate,
+                        tripHeroes[currentTrip.id]?.endDate,
+                        destinationsList
+                      )}
+                    </span>
+                  )}
                 </div>
 
                 <div className="hidden sm:block w-px h-4 bg-[#CCD2CA] dark:bg-stone-700" />
@@ -922,7 +1039,12 @@ export function TripOverview({
                     <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
-                  <span>4 viajeros</span>
+                  <span>
+                    {tripHeroes[currentTrip.id]?.travelersCount || 4}{" "}
+                    {(tripHeroes[currentTrip.id]?.travelersCount || 4) === 1
+                      ? "viajero"
+                      : "viajeros"}
+                  </span>
                 </div>
 
                 <div className="hidden sm:block w-px h-4 bg-[#CCD2CA] dark:bg-stone-700" />
@@ -940,7 +1062,10 @@ export function TripOverview({
                     <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
                     <circle cx="12" cy="10" r="3" />
                   </svg>
-                  <span>3 destinos</span>
+                  <span>
+                    {destinationsList.length}{" "}
+                    {destinationsList.length === 1 ? "destino" : "destinos"}
+                  </span>
                 </div>
               </div>
 
@@ -966,21 +1091,11 @@ export function TripOverview({
                   <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
                   <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
                 </svg>
-                <span>Lisboa, ahora · 21° · Soleado</span>
+                <span>
+                  {destinationsList[0]?.name || "Lisboa"}, ahora · 21° · Soleado
+                </span>
               </div>
             </div>
-
-            {/* Hero Panorama & 21 Days Countdown with Admin Edit Button */}
-            <TripHero
-              tripName={currentTrip.name}
-              initialData={tripHeroes[currentTrip.id]}
-              daysRemaining={calculateDaysRemaining(tripHeroes[currentTrip.id]?.startDate)}
-              departureDate={formatDepartureDay(tripHeroes[currentTrip.id]?.startDate, currentTrip.dates)}
-              isAdmin={isAdmin}
-              isEditModalOpen={isEditHeroModalOpen}
-              onToggleEditModal={setIsEditHeroModalOpen}
-              onSaveHero={handleSaveHero}
-            />
 
             {/* The Requested Destinations Slider */}
             <DestinationsSlider
@@ -1085,68 +1200,29 @@ export function TripOverview({
         </div>
       )}
 
-      {/* Modal: Añadir Nuevo Destino */}
-      {isAddDestinationOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md p-6 rounded-[16px] bg-white dark:bg-stone-900 border border-[#CCD2CA] dark:border-stone-700 shadow-xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-serif text-xl font-normal text-[#203D34] dark:text-stone-100">
-                Añadir nuevo lugar al viaje
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsAddDestinationOpen(false)}
-                className="p-1 rounded-sm text-stone-500 hover:text-stone-800 dark:hover:text-stone-200"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-xs text-[#4D5B54] dark:text-stone-400">
-              Añade una nueva ciudad o parada a vuestro recorrido por {currentTrip.name}.
-            </p>
-
-            <form
-              onSubmit={handleAddDestination}
-              className="space-y-4"
-            >
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="new-city"
-                  className="text-xs font-medium text-[#203D34] dark:text-stone-300"
-                >
-                  Nombre de la ciudad o destino
-                </label>
-                <input
-                  id="new-city"
-                  type="text"
-                  required
-                  value={newCityName}
-                  onChange={(e) => setNewCityName(e.target.value)}
-                  placeholder="Ej. Coímbra, Cascais, Algarve..."
-                  className="w-full h-11 px-3.5 rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-sm focus:outline-hidden focus:ring-1 focus:ring-[#245544]"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddDestinationOpen(false)}
-                  className="h-10 text-xs rounded-[8px]"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  className="h-10 text-xs bg-[#245544] hover:bg-[#1b4335] text-white rounded-[8px]"
-                >
-                  Guardar destino
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Modal: Crear / Editar Destino del Itinerario */}
+      <CreateDestinationModal
+        isOpen={isAddDestinationOpen}
+        onClose={() => {
+          setIsAddDestinationOpen(false)
+          setEditingCityData(null)
+        }}
+        mode={editingCityData ? "edit" : "create"}
+        tripName={currentTrip.name}
+        initialData={
+          editingCityData
+            ? {
+                id: editingCityData.id,
+                name: editingCityData.name,
+                days: editingCityData.nights,
+                image: editingCityData.image,
+                title: editingCityData.title,
+                subtitle: editingCityData.subtitle,
+              }
+            : undefined
+        }
+        onSave={handleSaveDestination}
+      />
 
       {/* Modal: Crear Nuevo Viaje usando EditHeroModal */}
       <EditHeroModal

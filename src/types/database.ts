@@ -20,6 +20,7 @@ export interface Database {
           nombre: string
           fecha_inicio: string | null
           fecha_fin: string | null
+          num_viajeros?: number | null
           presupuesto_total: number
           foto_portada: string | null
           titulo_cabecero: string | null
@@ -33,6 +34,7 @@ export interface Database {
           nombre: string
           fecha_inicio?: string | null
           fecha_fin?: string | null
+          num_viajeros?: number | null
           presupuesto_total?: number
           foto_portada?: string | null
           titulo_cabecero?: string | null
@@ -46,6 +48,7 @@ export interface Database {
           nombre?: string
           fecha_inicio?: string | null
           fecha_fin?: string | null
+          num_viajeros?: number | null
           presupuesto_total?: number
           foto_portada?: string | null
           titulo_cabecero?: string | null
@@ -87,6 +90,9 @@ export interface Database {
           nombre: string
           dias: number
           orden: number
+          foto?: string | null
+          titulo_cabecero?: string | null
+          subtitulo_cabecero?: string | null
           creado_en: string
         }
         Insert: {
@@ -95,6 +101,9 @@ export interface Database {
           nombre: string
           dias?: number
           orden?: number
+          foto?: string | null
+          titulo_cabecero?: string | null
+          subtitulo_cabecero?: string | null
           creado_en?: string
         }
         Update: {
@@ -103,6 +112,9 @@ export interface Database {
           nombre?: string
           dias?: number
           orden?: number
+          foto?: string | null
+          titulo_cabecero?: string | null
+          subtitulo_cabecero?: string | null
           creado_en?: string
         }
         Relationships: []

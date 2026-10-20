@@ -1,22 +1,41 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { tripService } from "@/lib/tripService"
+import { tripService, DEFAULT_DESTINATION_IMAGE } from "@/lib/tripService"
+import type { Destination } from "./DestinationsSlider"
 
 interface CityDetailViewProps {
   cityId?: string
   cityName?: string
+  cityData?: Destination
   tripName?: string
+  travelersCount?: number
+  isAdmin?: boolean
   onBack: () => void
   onSelectCity?: (cityId: string) => void
+  onEditCity?: (city: Destination) => void
 }
 
 export function CityDetailView({
   cityId,
   cityName = "Lisboa",
+  cityData,
   tripName = "Portugal en familia",
+  travelersCount = 4,
+  isAdmin = true,
   onBack,
   onSelectCity,
+  onEditCity,
 }: CityDetailViewProps) {
+  const cityImage = cityData?.image || DEFAULT_DESTINATION_IMAGE
+  const cityDays = cityData?.nights || 2
+  const cityNights = Math.max(1, cityDays - 1)
+  const cityTitle =
+    cityData?.title ||
+    `${cityDays} ${cityDays === 1 ? "día" : "días"} al ritmo de ${cityName}.`
+  const citySubtitle =
+    cityData?.subtitle ||
+    `Miradores, azulejos y momentos para disfrutar juntos en ${cityName}. Aquí continúa vuestra historia.`
+
   // Selected transport (train vs bus)
   const [selectedTransport, setSelectedTransport] = useState<"train" | "bus">(
     "train"
@@ -183,13 +202,18 @@ export function CityDetailView({
               <line x1="3" y1="10" x2="21" y2="10" />
             </svg>
             <span className="font-medium text-[#203D34] dark:text-stone-100">
-              Del 6 al 9 de noviembre de 2026
+              {cityName} · {cityData?.dates || `${cityDays} ${cityDays === 1 ? "día" : "días"}`}
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-[#727B74] dark:text-stone-400">
-            <span>4 días / 3 noches</span>
+            <span>
+              {cityDays} {cityDays === 1 ? "día" : "días"} / {cityNights}{" "}
+              {cityNights === 1 ? "noche" : "noches"}
+            </span>
             <span>·</span>
-            <span>4 viajeros</span>
+            <span>
+              {travelersCount} {travelersCount === 1 ? "viajero" : "viajeros"}
+            </span>
           </div>
         </div>
 
@@ -222,11 +246,11 @@ export function CityDetailView({
       </div>
 
       {/* Editorial Panorama Banner */}
-      <div className="relative h-[220px] sm:h-[240px] w-full rounded-[14px] overflow-hidden shadow-xs">
+      <div className="relative h-[220px] sm:h-[240px] w-full rounded-[14px] overflow-hidden shadow-xs group">
         <img
-          src="/images/lisboa-editorial.png"
-          alt="Panorámica de Lisboa"
-          className="absolute inset-0 w-full h-full object-cover"
+          src={cityImage}
+          alt={`Panorámica de ${cityName}`}
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-102"
         />
         <div
           className="absolute inset-0 pointer-events-none"
@@ -251,18 +275,41 @@ export function CityDetailView({
               <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
-            <span>Lisboa, Portugal</span>
+            <span>{cityName}</span>
           </div>
         </div>
+
+        {/* Edit Destination Button (if admin) */}
+        {isAdmin && onEditCity && cityData && (
+          <button
+            type="button"
+            onClick={() => onEditCity(cityData)}
+            className="absolute top-4 right-4 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-xs text-xs font-medium text-white shadow-xs transition-colors cursor-pointer"
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+            <span>Editar lugar</span>
+          </button>
+        )}
 
         {/* Editorial Quote */}
         <div className="absolute bottom-5 left-5 right-5 z-10 text-white max-w-[700px]">
           <h2 className="font-serif text-2xl sm:text-3xl lg:text-[32px] font-normal leading-snug drop-shadow-xs">
-            Cuatro días al ritmo de Lisboa.
+            {cityTitle}
           </h2>
           <p className="mt-1 text-xs sm:text-sm text-white/90 font-normal">
-            Miradores, azulejos y tiempo para disfrutar juntos. Aquí empieza
-            vuestra historia.
+            {citySubtitle}
           </p>
         </div>
       </div>

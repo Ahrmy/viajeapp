@@ -5,6 +5,7 @@ import type {
   ViajeUpdate,
   Ciudad,
   CiudadInsert,
+  CiudadUpdate,
   Tarea,
   TareaInsert,
   TareaUpdate,
@@ -25,6 +26,9 @@ export const DEMO_TRIP_ID = "demo-portugal-2026";
 // Portada por defecto cuando el usuario no sube ninguna imagen
 export const DEFAULT_COVER_IMAGE = "/images/default-cover.jpg";
 
+// Foto por defecto para nuevos lugares / ciudades del itinerario
+export const DEFAULT_DESTINATION_IMAGE = "/images/default-destination.jpg";
+
 // Bucket de Supabase Storage para las portadas de los viajes
 export const COVER_BUCKET = "portadas";
 export const MAX_COVER_SIZE_MB = 5;
@@ -35,6 +39,7 @@ export const DEMO_TRIPS: Viaje[] = [
     nombre: "Portugal en familia",
     fecha_inicio: "2026-11-06",
     fecha_fin: "2026-11-13",
+    num_viajeros: 4,
     presupuesto_total: 3200,
     foto_portada: "/images/lisboa-panoramica.png",
     titulo_cabecero: "Hay viajes que ya se sienten cerca.",
@@ -49,6 +54,7 @@ export const DEMO_TRIPS: Viaje[] = [
     nombre: "Un verano en Menorca",
     fecha_inicio: "2027-07-12",
     fecha_fin: "2027-07-19",
+    num_viajeros: 4,
     presupuesto_total: 2800,
     foto_portada: "/images/family-costa-brava.png",
     titulo_cabecero: "Calas turquesas y brisa mediterránea.",
@@ -62,6 +68,7 @@ export const DEMO_TRIPS: Viaje[] = [
     nombre: "Escapada a los Pirineos",
     fecha_inicio: "2026-12-02",
     fecha_fin: "2026-12-05",
+    num_viajeros: 2,
     presupuesto_total: 1500,
     foto_portada: "/images/costa-brava.jpg",
     titulo_cabecero: "Naturaleza viva y aire puro de montaña.",
@@ -80,6 +87,9 @@ export const DEMO_CITIES: Ciudad[] = [
     nombre: "Lisboa",
     dias: 3,
     orden: 0,
+    foto: "/images/destino-lisboa.png",
+    titulo_cabecero: "Tres días al ritmo de Lisboa.",
+    subtitulo_cabecero: "Miradores, azulejos y tiempo para disfrutar juntos en familia.",
     creado_en: new Date().toISOString(),
   },
   {
@@ -88,6 +98,9 @@ export const DEMO_CITIES: Ciudad[] = [
     nombre: "Sintra",
     dias: 1,
     orden: 1,
+    foto: "/images/destino-sintra.png",
+    titulo_cabecero: "Un día mágico entre palacios y bosques.",
+    subtitulo_cabecero: "Castillos de ensueño, niebla mística y senderos verdes.",
     creado_en: new Date().toISOString(),
   },
   {
@@ -96,6 +109,9 @@ export const DEMO_CITIES: Ciudad[] = [
     nombre: "Oporto",
     dias: 3,
     orden: 2,
+    foto: "/images/destino-oporto.png",
+    titulo_cabecero: "Tres días junto a la ribera del Duero.",
+    subtitulo_cabecero: "Puentes de hierro, tranvías históricos y bodegas centenarias.",
     creado_en: new Date().toISOString(),
   },
   // Ciudades para Un verano en Menorca
@@ -105,6 +121,9 @@ export const DEMO_CITIES: Ciudad[] = [
     nombre: "Ciutadella",
     dias: 4,
     orden: 0,
+    foto: "/images/family-costa-brava.png",
+    titulo_cabecero: "Cuatro días en el corazón de Menorca.",
+    subtitulo_cabecero: "Calles de piedra dorada, puerto antiguo y calas vírgenes.",
     creado_en: new Date().toISOString(),
   },
   {
@@ -113,6 +132,9 @@ export const DEMO_CITIES: Ciudad[] = [
     nombre: "Fornells",
     dias: 3,
     orden: 1,
+    foto: "/images/family-costa-brava.png",
+    titulo_cabecero: "Tres días de calma marinera y bahías cristalinas.",
+    subtitulo_cabecero: "Pueblo blanco de pescadores, veleros y caldereta frente al mar.",
     creado_en: new Date().toISOString(),
   },
   // Ciudades para Escapada a los Pirineos
@@ -122,6 +144,9 @@ export const DEMO_CITIES: Ciudad[] = [
     nombre: "Valle de Benasque",
     dias: 2,
     orden: 0,
+    foto: "/images/costa-brava.jpg",
+    titulo_cabecero: "Dos días rodeados de tresmiles y cascadas.",
+    subtitulo_cabecero: "Aire puro, bosques frondosos y refugios de alta montaña.",
     creado_en: new Date().toISOString(),
   },
   {
@@ -130,6 +155,9 @@ export const DEMO_CITIES: Ciudad[] = [
     nombre: "Torla-Ordesa",
     dias: 2,
     orden: 1,
+    foto: "/images/costa-brava.jpg",
+    titulo_cabecero: "Dos días en el cañón de Ordesa.",
+    subtitulo_cabecero: "Hayedos majestuosos, paredes de roca y sendas inolvidables.",
     creado_en: new Date().toISOString(),
   },
 ];
@@ -422,6 +450,7 @@ export const tripService = {
         nombre: trip.nombre,
         fecha_inicio: trip.fecha_inicio ?? null,
         fecha_fin: trip.fecha_fin ?? null,
+        num_viajeros: trip.num_viajeros ?? 1,
         presupuesto_total: trip.presupuesto_total ?? 0,
         foto_portada: trip.foto_portada ?? null,
         titulo_cabecero: trip.titulo_cabecero ?? null,
@@ -577,6 +606,9 @@ export const tripService = {
         nombre: city.nombre,
         dias: city.dias ?? 1,
         orden: city.orden ?? existingInTrip.length,
+        foto: city.foto ?? DEFAULT_DESTINATION_IMAGE,
+        titulo_cabecero: city.titulo_cabecero ?? null,
+        subtitulo_cabecero: city.subtitulo_cabecero ?? null,
         creado_en: new Date().toISOString(),
       };
       localCities.push(demoCity);
@@ -596,6 +628,40 @@ export const tripService = {
       return {
         data: null,
         error: err instanceof Error ? err.message : "Error al guardar ciudad",
+      };
+    }
+  },
+
+  /**
+   * Actualiza datos de una ciudad (días, foto, cabecero, nombre)
+   */
+  async updateCity(
+    cityId: string,
+    updates: CiudadUpdate,
+  ): Promise<{ success: boolean; error?: string }> {
+    if (
+      !isSupabaseConfigured ||
+      cityId.startsWith("demo-") ||
+      cityId.startsWith("city-")
+    ) {
+      localCities = localCities.map((c) =>
+        c.id === cityId ? { ...c, ...updates } : c,
+      );
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("ciudades")
+        .update(updates)
+        .eq("id", cityId);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al actualizar ciudad",
       };
     }
   },
