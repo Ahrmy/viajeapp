@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Sidebar, type TripOption } from "./Sidebar"
 import { TripHero } from "./TripHero"
-import { EditHeroModal, type HeroData } from "./EditHeroModal"
+import { EditHeroModal, type HeroData, formatDateRange } from "./EditHeroModal"
 import { DestinationsSlider, type Destination } from "./DestinationsSlider"
 import { CityDetailView } from "./CityDetailView"
 import { BudgetView } from "./BudgetView"
@@ -23,19 +23,33 @@ interface TripOverviewProps {
   onNavigateToAuth?: () => void
 }
 
-function formatDateRange(start?: string | null, end?: string | null, fallback = "6–13 nov 2026"): string {
-  if (!start) return fallback
+function calculateDaysRemaining(startDate?: string | null): number {
+  if (!startDate) return 21
   try {
-    const s = new Date(start)
-    const e = end ? new Date(end) : null
-    const months = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
-    if (e && !isNaN(e.getTime())) {
-      if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
-        return `${s.getDate()}–${e.getDate()} ${months[s.getMonth()]} ${s.getFullYear()}`
-      }
-      return `${s.getDate()} ${months[s.getMonth()]} – ${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`
-    }
-    return `${s.getDate()} ${months[s.getMonth()]} ${s.getFullYear()}`
+    const parts = startDate.split("-").map(Number)
+    if (parts.length !== 3) return 21
+    const target = new Date(parts[0], parts[1] - 1, parts[2])
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const diffTime = target.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays > 0 ? diffDays : 0
+  } catch {
+    return 21
+  }
+}
+
+function formatDepartureDay(startDate?: string | null, fallback = "6 de noviembre"): string {
+  if (!startDate) return fallback
+  try {
+    const parts = startDate.split("-").map(Number)
+    if (parts.length !== 3) return fallback
+    const target = new Date(parts[0], parts[1] - 1, parts[2])
+    const monthsFull = [
+      "enero", "febrero", "marzo", "abril", "mayo", "junio",
+      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+    ]
+    return `${target.getDate()} de ${monthsFull[target.getMonth()]}`
   } catch {
     return fallback
   }
@@ -84,8 +98,8 @@ export function TripOverview({
   const [activeSection, setActiveSection] = useState("general")
   const [tripsList, setTripsList] = useState<TripOption[]>([
     { id: "portugal", name: "Portugal en familia", dates: "6–13 nov 2026" },
-    { id: "menorca", name: "Un verano en Menorca", dates: "12–19 jul 2026" },
-    { id: "pirineos", name: "Escapada a los Pirineos", dates: "2–5 abr 2026" },
+    { id: "menorca", name: "Un verano en Menorca", dates: "12–19 jul 2027" },
+    { id: "pirineos", name: "Escapada a los Pirineos", dates: "2–5 dic 2026" },
   ])
   const [currentTrip, setCurrentTrip] = useState<TripOption>(tripsList[0])
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -102,12 +116,21 @@ export function TripOverview({
   const [selectedCityName, setSelectedCityName] = useState<string>("Lisboa")
 
   // Database synced state
-  const [destinationsList, setDestinationsList] = useState<Destination[]>(
-    DEMO_CITIES.map(mapCityToDestination)
+  const [destinationsList, setDestinationsList] = useState<Destination[]>(() =>
+    DEMO_CITIES.filter((c) => c.viaje_id === tripsList[0]?.id).map(
+      mapCityToDestination
+    )
   )
-  const [tasksList, setTasksList] = useState<TaskItem[]>(
-    DEMO_TASKS.map((t) => mapDbTaskToTaskItem(t, { "demo-sintra": "Sintra", "demo-oporto": "Oporto" }))
-  )
+  const [tasksList, setTasksList] = useState<TaskItem[]>(() => {
+    const initialTripId = tripsList[0]?.id
+    const cityMap: Record<string, string> = {}
+    DEMO_CITIES.filter((c) => c.viaje_id === initialTripId).forEach((c) => {
+      cityMap[c.id] = c.nombre
+    })
+    return DEMO_TASKS.filter((t) => t.viaje_id === initialTripId).map((t) =>
+      mapDbTaskToTaskItem(t, cityMap)
+    )
+  })
   const [budgetTotal, setBudgetTotal] = useState<number>(3200)
   const [budgetSpent, setBudgetSpent] = useState<number>(1840)
   const [showSeedBanner, setShowSeedBanner] = useState(false)
@@ -117,6 +140,8 @@ export function TripOverview({
     portugal: {
       tripName: "Portugal en familia",
       dates: "6–13 nov 2026",
+      startDate: "2026-11-06",
+      endDate: "2026-11-13",
       title: "Hay viajes que ya se sienten cerca.",
       subtitle: "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.",
       image: "/images/lisboa-panoramica.png",
@@ -124,7 +149,9 @@ export function TripOverview({
     },
     menorca: {
       tripName: "Un verano en Menorca",
-      dates: "12–19 jul 2026",
+      dates: "12–19 jul 2027",
+      startDate: "2027-07-12",
+      endDate: "2027-07-19",
       title: "Calas turquesas y brisa mediterránea.",
       subtitle: "Ciutadella, Fornells y senderos mágicos en familia.",
       image: "/images/family-costa-brava.png",
@@ -132,7 +159,9 @@ export function TripOverview({
     },
     pirineos: {
       tripName: "Escapada a los Pirineos",
-      dates: "2–5 abr 2026",
+      dates: "2–5 dic 2026",
+      startDate: "2026-12-02",
+      endDate: "2026-12-05",
       title: "Naturaleza viva y aire puro de montaña.",
       subtitle: "Senderos verdes, valles y refugios inolvidables.",
       image: "/images/costa-brava.jpg",
@@ -162,6 +191,8 @@ export function TripOverview({
         heroesMap[v.id] = {
           tripName: v.nombre,
           dates: formatDateRange(v.fecha_inicio, v.fecha_fin),
+          startDate: v.fecha_inicio || undefined,
+          endDate: v.fecha_fin || undefined,
           title: v.titulo_cabecero || "Hay viajes que ya se sienten cerca.",
           subtitle: v.subtitulo_cabecero || "Un camino para disfrutar juntos.",
           image: v.foto_portada || DEFAULT_COVER_IMAGE,
@@ -188,31 +219,38 @@ export function TripOverview({
     if (!currentTrip?.id) return
     let isMounted = true
 
-    // Cargar ciudades
+    // Cargar ciudades del viaje activo
     tripService.getCities(currentTrip.id).then((cities) => {
       if (!isMounted) return
-      if (cities && cities.length > 0) {
-        const dests = cities.map(mapCityToDestination)
-        setDestinationsList(dests)
-        setSelectedCityId(cities[0].id)
-        setSelectedCityName(cities[0].nombre)
+      const loadedCities = cities || []
+      const dests = loadedCities.map(mapCityToDestination)
+      setDestinationsList(dests)
 
-        // Cargar tareas con mapeo de nombres de ciudades
-        const cityMap: Record<string, string> = {}
-        cities.forEach((c) => {
-          cityMap[c.id] = c.nombre
-        })
-
-        tripService.getTasks(currentTrip.id).then((tasks) => {
-          if (!isMounted) return
-          if (tasks && tasks.length > 0) {
-            setTasksList(tasks.map((t) => mapDbTaskToTaskItem(t, cityMap)))
-          }
-        })
+      if (loadedCities.length > 0) {
+        setSelectedCityId(loadedCities[0].id)
+        setSelectedCityName(loadedCities[0].nombre)
+      } else {
+        setSelectedCityId(null)
+        setSelectedCityName("")
       }
+
+      // Cargar tareas con mapeo de nombres de ciudades para este viaje
+      const cityMap: Record<string, string> = {}
+      loadedCities.forEach((c) => {
+        cityMap[c.id] = c.nombre
+      })
+
+      tripService.getTasks(currentTrip.id).then((tasks) => {
+        if (!isMounted) return
+        if (tasks) {
+          setTasksList(tasks.map((t) => mapDbTaskToTaskItem(t, cityMap)))
+        } else {
+          setTasksList([])
+        }
+      })
     })
 
-    // Cargar presupuesto y gastos
+    // Cargar presupuesto y gastos del viaje activo
     tripService.getExpenses(currentTrip.id).then((expenses) => {
       if (!isMounted) return
       if (expenses) {
@@ -220,6 +258,8 @@ export function TripOverview({
           .filter((g) => g.estado === "aprobado")
           .reduce((sum, g) => sum + Number(g.monto), 0)
         setBudgetSpent(approvedSum)
+      } else {
+        setBudgetSpent(0)
       }
     })
 
@@ -266,6 +306,8 @@ export function TripOverview({
       // Persistir en Supabase
       await tripService.updateTrip(currentTrip.id, {
         nombre: newName,
+        fecha_inicio: data.startDate || null,
+        fecha_fin: data.endDate || null,
         titulo_cabecero: data.title,
         subtitulo_cabecero: data.subtitle,
         foto_portada: data.image,
@@ -291,6 +333,8 @@ export function TripOverview({
       const res = await tripService.createTrip({
         nombre: newName,
         creado_por: user.id,
+        fecha_inicio: data.startDate || null,
+        fecha_fin: data.endDate || null,
         titulo_cabecero: data.title || "Una nueva historia por escribir.",
         subtitulo_cabecero: data.subtitle || "Explorando juntos nuevos rincones.",
         foto_portada: data.image || DEFAULT_COVER_IMAGE,
@@ -314,8 +358,11 @@ export function TripOverview({
     setTripHeroes((prev) => ({
       ...prev,
       [createdId]: {
+        ...data,
         tripName: newName,
         dates: newDates,
+        startDate: data.startDate,
+        endDate: data.endDate,
         title: data.title || "Una nueva historia por escribir.",
         subtitle: data.subtitle || "Explorando juntos nuevos rincones.",
         image: data.image || DEFAULT_COVER_IMAGE,
@@ -485,8 +532,13 @@ export function TripOverview({
             if (s === "general") {
               setSelectedCityId(null)
             } else if (s === "itinerario") {
-              setSelectedCityId("lisboa")
-              setSelectedCityName("Lisboa")
+              const firstCity = destinationsList[0]
+              if (firstCity) {
+                setSelectedCityId(firstCity.id)
+                setSelectedCityName(firstCity.name)
+              } else {
+                setSelectedCityId(null)
+              }
             } else if (s === "presupuesto") {
               setSelectedCityId(null)
             }
@@ -519,14 +571,14 @@ export function TripOverview({
               setActiveSection("general")
             }}
             onSelectCity={(id) => {
-              setSelectedCityId(id)
-              setSelectedCityName(
-                id === "sintra"
-                  ? "Sintra"
-                  : id === "oporto"
-                    ? "Oporto"
-                    : "Lisboa"
-              )
+              const target = destinationsList.find((d) => d.id === id)
+              if (target) {
+                setSelectedCityId(target.id)
+                setSelectedCityName(target.name)
+              } else {
+                setSelectedCityId(id)
+                setSelectedCityName(id)
+              }
             }}
           />
         ) : activeSection === "presupuesto" ? (
@@ -922,8 +974,8 @@ export function TripOverview({
             <TripHero
               tripName={currentTrip.name}
               initialData={tripHeroes[currentTrip.id]}
-              daysRemaining={21}
-              departureDate={currentTrip.dates}
+              daysRemaining={calculateDaysRemaining(tripHeroes[currentTrip.id]?.startDate)}
+              departureDate={formatDepartureDay(tripHeroes[currentTrip.id]?.startDate, currentTrip.dates)}
               isAdmin={isAdmin}
               isEditModalOpen={isEditHeroModalOpen}
               onToggleEditModal={setIsEditHeroModalOpen}
@@ -936,9 +988,11 @@ export function TripOverview({
               onAddDestination={() => setIsAddDestinationOpen(true)}
               onViewItinerary={() => {
                 const firstCity = destinationsList[0]
-                setSelectedCityId(firstCity ? firstCity.id : "lisboa")
-                setSelectedCityName(firstCity ? firstCity.name : "Lisboa")
-                setActiveSection("itinerario")
+                if (firstCity) {
+                  setSelectedCityId(firstCity.id)
+                  setSelectedCityName(firstCity.name)
+                  setActiveSection("itinerario")
+                }
               }}
               onSelectDestination={(dest) => {
                 setSelectedCityId(dest.id)

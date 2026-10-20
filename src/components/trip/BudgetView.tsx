@@ -120,7 +120,9 @@ export function BudgetView({
   onBack,
   onUpdateLimit,
 }: BudgetViewProps) {
-  const [expenses, setExpenses] = useState<Expense[]>(INITIAL_EXPENSES)
+  const [expenses, setExpenses] = useState<Expense[]>(() =>
+    tripId === "demo-portugal-2026" || !tripId ? INITIAL_EXPENSES : []
+  )
   const [totalLimit, setTotalLimit] = useState(initialLimit || 3200)
   const [statusFilter, setStatusFilter] = useState<
     "todos" | "realizados" | "proyectados"
@@ -192,6 +194,8 @@ export function BudgetView({
           }
         })
         setExpenses(mapped)
+      } else {
+        setExpenses([])
       }
     })
 

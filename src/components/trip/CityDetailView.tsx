@@ -53,6 +53,8 @@ export function CityDetailView({
           location: `${cityName} · Plan en familia`,
         }))
         setDay2ExtraActivities(extra)
+      } else {
+        setDay2ExtraActivities([])
       }
     })
     return () => {

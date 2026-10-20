@@ -25,6 +25,9 @@ export function TripHero({
 }: TripHeroProps) {
   const [heroData, setHeroData] = useState<HeroData>({
     tripName: tripName,
+    dates: initialData?.dates,
+    startDate: initialData?.startDate,
+    endDate: initialData?.endDate,
     title: initialData?.title || "Hay viajes que ya se sienten cerca.",
     subtitle:
       initialData?.subtitle ||
@@ -40,6 +43,8 @@ export function TripHero({
     setHeroData({
       tripName: tripName,
       dates: initialData?.dates,
+      startDate: initialData?.startDate,
+      endDate: initialData?.endDate,
       title: initialData?.title || "Hay viajes que ya se sienten cerca.",
       subtitle:
         initialData?.subtitle ||

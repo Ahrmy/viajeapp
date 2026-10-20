@@ -58,12 +58,12 @@ export function DestinationsSlider({
   onSelectDestination,
 }: DestinationsSliderProps) {
   const [destinations, setDestinations] = useState<Destination[]>(
-    propsDestinations && propsDestinations.length > 0 ? propsDestinations : INITIAL_DESTINATIONS
+    propsDestinations !== undefined ? propsDestinations : INITIAL_DESTINATIONS
   )
 
   // Update when prop changes
   useEffect(() => {
-    if (propsDestinations && propsDestinations.length > 0) {
+    if (propsDestinations !== undefined) {
       setDestinations(propsDestinations)
     }
   }, [propsDestinations])
@@ -88,32 +88,34 @@ export function DestinationsSlider({
             Un viaje, muchos lugares
           </h2>
           <span className="text-xs text-[#727B74] dark:text-stone-400">
-            {destinations.length} destinos
+            {destinations.length} {destinations.length === 1 ? "destino" : "destinos"}
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={onViewItinerary}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#245544] dark:text-emerald-400 hover:underline transition-colors cursor-pointer"
-        >
-          <span>Ver itinerario</span>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
+        {destinations.length > 0 && (
+          <button
+            type="button"
+            onClick={onViewItinerary}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#245544] dark:text-emerald-400 hover:underline transition-colors cursor-pointer"
           >
-            <path
-              d="M3 7H11M11 7L7.5 3.5M11 7L7.5 10.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+            <span>Ver itinerario</span>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M3 7H11M11 7L7.5 3.5M11 7L7.5 10.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Responsive Grid: 4 columns on desktop (lg:grid-cols-4), 2 columns on mobile (grid-cols-2) */}
@@ -285,10 +287,10 @@ export function DestinationsSlider({
 
           <div className="space-y-1">
             <h3 className="font-serif text-sm sm:text-base lg:text-[18px] xl:text-[20px] font-normal text-[#203D34] dark:text-stone-100 leading-snug">
-              ¿Y si añadimos otro lugar?
+              {destinations.length === 0 ? "¿A dónde vamos?" : "¿Y si añadimos otro lugar?"}
             </h3>
             <p className="text-[10px] sm:text-[11px] text-[#4D5B54] dark:text-stone-400 leading-relaxed">
-              Siempre hay sitio para una idea más.
+              {destinations.length === 0 ? "Añade la primera ciudad a este viaje." : "Siempre hay sitio para una idea más."}
             </p>
           </div>
         </div>

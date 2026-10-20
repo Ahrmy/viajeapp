@@ -47,11 +47,11 @@ export function UpcomingTasksCard({
   onViewAllTasks,
 }: UpcomingTasksCardProps) {
   const [tasks, setTasks] = useState<TaskItem[]>(
-    propsTasks && propsTasks.length > 0 ? propsTasks : INITIAL_TASKS
+    propsTasks !== undefined ? propsTasks : INITIAL_TASKS
   )
 
   useEffect(() => {
-    if (propsTasks) {
+    if (propsTasks !== undefined) {
       setTasks(propsTasks)
     }
   }, [propsTasks])

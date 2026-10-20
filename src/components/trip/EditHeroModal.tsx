@@ -11,10 +11,66 @@ import {
 export interface HeroData {
   tripName?: string
   dates?: string
+  startDate?: string
+  endDate?: string
   title: string
   subtitle: string
   image: string
   locationBadge?: string
+}
+
+export function getTodayString(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const day = String(now.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+export function formatDateRange(
+  start?: string | null,
+  end?: string | null,
+  fallback = "Fechas por definir"
+): string {
+  if (!start) return fallback
+  try {
+    const sParts = start.split("-").map(Number)
+    if (sParts.length !== 3 || isNaN(sParts[0])) return fallback
+    const s = new Date(sParts[0], sParts[1] - 1, sParts[2])
+
+    const months = [
+      "ene", "feb", "mar", "abr", "may", "jun",
+      "jul", "ago", "sep", "oct", "nov", "dic",
+    ]
+
+    if (end) {
+      const eParts = end.split("-").map(Number)
+      if (eParts.length === 3 && !isNaN(eParts[0])) {
+        const e = new Date(eParts[0], eParts[1] - 1, eParts[2])
+        if (!isNaN(e.getTime())) {
+          if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
+            return `${s.getDate()}–${e.getDate()} ${months[s.getMonth()]} ${s.getFullYear()}`
+          }
+          return `${s.getDate()} ${months[s.getMonth()]} – ${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`
+        }
+      }
+    }
+    return `${s.getDate()} ${months[s.getMonth()]} ${s.getFullYear()}`
+  } catch {
+    return fallback
+  }
+}
+
+export function calculateNights(start: string, end: string): number {
+  if (!start || !end) return 0
+  const sParts = start.split("-").map(Number)
+  const eParts = end.split("-").map(Number)
+  if (sParts.length !== 3 || eParts.length !== 3) return 0
+  const s = new Date(sParts[0], sParts[1] - 1, sParts[2])
+  const e = new Date(eParts[0], eParts[1] - 1, eParts[2])
+  const diffTime = e.getTime() - s.getTime()
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+  return diffDays > 0 ? diffDays : 0
 }
 
 interface EditHeroModalProps {
@@ -35,9 +91,9 @@ export function EditHeroModal({
   const [tripName, setTripName] = useState(
     currentData?.tripName || (mode === "create" ? "" : "Portugal en familia")
   )
-  const [dates, setDates] = useState(
-    currentData?.dates || (mode === "create" ? "" : "6–13 nov 2026")
-  )
+  const [startDate, setStartDate] = useState(currentData?.startDate || "")
+  const [endDate, setEndDate] = useState(currentData?.endDate || "")
+  const [dateError, setDateError] = useState<string | null>(null)
   const [title, setTitle] = useState(
     currentData?.title ||
     (mode === "create"
@@ -63,11 +119,14 @@ export function EditHeroModal({
     currentData?.locationBadge || (mode === "create" ? "" : "Lisboa, Portugal")
   )
 
+  const today = getTodayString()
+
   useEffect(() => {
     if (isOpen) {
       if (mode === "create") {
         setTripName(currentData?.tripName || "")
-        setDates(currentData?.dates || "")
+        setStartDate(currentData?.startDate || "")
+        setEndDate(currentData?.endDate || "")
         setTitle(currentData?.title || "Una nueva historia por escribir.")
         setSubtitle(
           currentData?.subtitle ||
@@ -77,12 +136,14 @@ export function EditHeroModal({
         setLocationBadge(currentData?.locationBadge || "")
       } else {
         setTripName(currentData?.tripName || "Portugal en familia")
-        setDates(currentData?.dates || "6–13 nov 2026")
+        setStartDate(currentData?.startDate || "")
+        setEndDate(currentData?.endDate || "")
         setTitle(currentData?.title || "")
         setSubtitle(currentData?.subtitle || "")
         setImage(currentData?.image || "")
         setLocationBadge(currentData?.locationBadge || "Lisboa, Portugal")
       }
+      setDateError(null)
       setPendingFile(null)
       setPreviewUrl(null)
       setUploadError(null)
@@ -96,6 +157,26 @@ export function EditHeroModal({
       if (previewUrl) URL.revokeObjectURL(previewUrl)
     }
   }, [previewUrl])
+
+  const handleStartDateChange = (val: string) => {
+    setStartDate(val)
+    setDateError(null)
+    if (val && val < today) {
+      setDateError("La fecha de inicio no puede ser anterior a la fecha actual.")
+    } else if (endDate && val && endDate < val) {
+      setEndDate(val)
+    }
+  }
+
+  const handleEndDateChange = (val: string) => {
+    setEndDate(val)
+    setDateError(null)
+    if (val && val < today) {
+      setDateError("La fecha de fin no puede ser anterior a la fecha actual.")
+    } else if (startDate && val && val < startDate) {
+      setDateError("La fecha de fin no puede ser anterior a la fecha de inicio.")
+    }
+  }
 
   if (!isOpen) return null
 
@@ -129,6 +210,20 @@ export function EditHeroModal({
     e.preventDefault()
     if (isUploading) return
 
+    // Validar que las fechas no sean anteriores a hoy
+    if (startDate && startDate < today) {
+      setDateError("La fecha de inicio no puede ser anterior a la fecha actual.")
+      return
+    }
+    if (endDate && endDate < today) {
+      setDateError("La fecha de fin no puede ser anterior a la fecha actual.")
+      return
+    }
+    if (startDate && endDate && endDate < startDate) {
+      setDateError("La fecha de fin no puede ser anterior a la fecha de inicio.")
+      return
+    }
+
     let finalImage = image || DEFAULT_COVER_IMAGE
     if (pendingFile) {
       setIsUploading(true)
@@ -141,13 +236,19 @@ export function EditHeroModal({
       finalImage = res.url
     }
 
+    const calculatedDates = startDate
+      ? formatDateRange(startDate, endDate)
+      : mode === "create"
+        ? "Fechas por definir"
+        : (currentData?.dates || "Fechas por definir")
+
     await onSave({
       tripName:
         tripName.trim() ||
         (mode === "create" ? "Nuevo viaje familiar" : "Portugal en familia"),
-      dates:
-        dates.trim() ||
-        (mode === "create" ? "Fechas por definir" : "6–13 nov 2026"),
+      dates: calculatedDates,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
       title:
         title.trim() ||
         (mode === "create"
@@ -240,11 +341,15 @@ export function EditHeroModal({
             <span className="px-2 py-0.5 rounded-full bg-white/90 text-[9px] font-medium text-[#203D34]">
               {locationBadge || (mode === "create" ? "Ubicación" : "Lisboa, Portugal")}
             </span>
-            {dates && (
+            {startDate ? (
               <span className="px-2 py-0.5 rounded-full bg-white/90 text-[9px] font-medium text-[#203D34]">
-                {dates}
+                {formatDateRange(startDate, endDate)}
               </span>
-            )}
+            ) : currentData?.dates ? (
+              <span className="px-2 py-0.5 rounded-full bg-white/90 text-[9px] font-medium text-[#203D34]">
+                {currentData.dates}
+              </span>
+            ) : null}
           </div>
 
           {/* Trip name tag & Texts in preview */}
@@ -275,7 +380,8 @@ export function EditHeroModal({
                   type="button"
                   onClick={() => {
                     setTripName("Portugal en familia")
-                    setDates("6–13 nov 2026")
+                    setStartDate("2026-11-06")
+                    setEndDate("2026-11-13")
                     setTitle("Hay viajes que ya se sienten cerca.")
                     setSubtitle("Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.")
                     setLocationBadge("Lisboa, Portugal")
@@ -289,7 +395,8 @@ export function EditHeroModal({
                   type="button"
                   onClick={() => {
                     setTripName("Un verano en Menorca")
-                    setDates("12–19 jul 2026")
+                    setStartDate("2027-07-12")
+                    setEndDate("2027-07-19")
                     setTitle("Calas turquesas y brisa mediterránea.")
                     setSubtitle("Ciutadella, Fornells y senderos mágicos en familia.")
                     setLocationBadge("Menorca, España")
@@ -329,24 +436,107 @@ export function EditHeroModal({
             />
           </div>
 
-          {/* Fechas del viaje */}
-          <div className="flex flex-col gap-1.5">
-            <Label
-              htmlFor="trip-dates"
-              className="text-xs font-semibold text-[#203D34] dark:text-stone-200 flex items-center justify-between"
-            >
-              <span>Fechas del viaje</span>
-              <span className="text-[10px] font-normal text-[#727B74] dark:text-stone-400">
-                Opcional
-              </span>
-            </Label>
-            <Input
-              id="trip-dates"
-              value={dates}
-              onChange={(e) => setDates(e.target.value)}
-              placeholder="Ej. 12–19 jul 2026 o Verano 2026"
-              className="h-10 text-xs rounded-[8px] border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800"
-            />
+          {/* Fechas del viaje (Inicio y Fin con selector interactivo) */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-[#203D34] dark:text-stone-200 flex items-center gap-1.5">
+                <span>Fechas del viaje</span>
+              </Label>
+              <div className="flex items-center gap-2">
+                {(startDate || endDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStartDate("")
+                      setEndDate("")
+                      setDateError(null)
+                    }}
+                    className="text-[11px] font-medium text-[#B23A26] dark:text-red-400 hover:underline cursor-pointer"
+                  >
+                    Borrar fechas
+                  </button>
+                )}
+                <span className="text-[10px] font-normal text-[#727B74] dark:text-stone-400">
+                  Opcional
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Fecha de inicio */}
+              <div className="flex flex-col gap-1">
+                <label
+                  htmlFor="trip-start-date"
+                  className="text-[11px] font-medium text-[#4D5B54] dark:text-stone-300"
+                >
+                  Fecha de inicio
+                </label>
+                <Input
+                  type="date"
+                  id="trip-start-date"
+                  min={today}
+                  value={startDate}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
+                  className="h-10 text-xs rounded-[8px] border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#203D34] dark:text-stone-100"
+                />
+              </div>
+
+              {/* Fecha de fin */}
+              <div className="flex flex-col gap-1">
+                <label
+                  htmlFor="trip-end-date"
+                  className="text-[11px] font-medium text-[#4D5B54] dark:text-stone-300"
+                >
+                  Fecha de fin
+                </label>
+                <Input
+                  type="date"
+                  id="trip-end-date"
+                  min={startDate && startDate > today ? startDate : today}
+                  value={endDate}
+                  onChange={(e) => handleEndDateChange(e.target.value)}
+                  className="h-10 text-xs rounded-[8px] border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#203D34] dark:text-stone-100"
+                />
+              </div>
+            </div>
+
+            {/* Error de validación de fechas */}
+            {dateError && (
+              <p className="text-[11px] text-[#B23A26] dark:text-red-400 font-medium">
+                {dateError}
+              </p>
+            )}
+
+            {/* Vista previa amigable del rango */}
+            {startDate && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-[8px] bg-[#E8EFEA]/80 dark:bg-emerald-950/40 text-[#245544] dark:text-[#A7F3D0] text-[11px] font-medium">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <span>
+                  {formatDateRange(startDate, endDate)}
+                  {startDate && endDate && calculateNights(startDate, endDate) > 0
+                    ? ` · ${calculateNights(startDate, endDate)} ${
+                        calculateNights(startDate, endDate) === 1
+                          ? "noche"
+                          : "noches"
+                      }`
+                    : ""}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Título de bienvenida */}

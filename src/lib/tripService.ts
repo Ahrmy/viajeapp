@@ -47,8 +47,8 @@ export const DEMO_TRIPS: Viaje[] = [
   {
     id: "demo-menorca-2026",
     nombre: "Un verano en Menorca",
-    fecha_inicio: "2026-07-12",
-    fecha_fin: "2026-07-19",
+    fecha_inicio: "2027-07-12",
+    fecha_fin: "2027-07-19",
     presupuesto_total: 2800,
     foto_portada: "/images/family-costa-brava.png",
     titulo_cabecero: "Calas turquesas y brisa mediterránea.",
@@ -60,8 +60,8 @@ export const DEMO_TRIPS: Viaje[] = [
   {
     id: "demo-pirineos-2026",
     nombre: "Escapada a los Pirineos",
-    fecha_inicio: "2026-04-02",
-    fecha_fin: "2026-04-05",
+    fecha_inicio: "2026-12-02",
+    fecha_fin: "2026-12-05",
     presupuesto_total: 1500,
     foto_portada: "/images/costa-brava.jpg",
     titulo_cabecero: "Naturaleza viva y aire puro de montaña.",
@@ -73,6 +73,7 @@ export const DEMO_TRIPS: Viaje[] = [
 ];
 
 export const DEMO_CITIES: Ciudad[] = [
+  // Ciudades para Portugal en familia
   {
     id: "demo-lisboa",
     viaje_id: DEMO_TRIP_ID,
@@ -97,7 +98,44 @@ export const DEMO_CITIES: Ciudad[] = [
     orden: 2,
     creado_en: new Date().toISOString(),
   },
+  // Ciudades para Un verano en Menorca
+  {
+    id: "demo-ciutadella",
+    viaje_id: "demo-menorca-2026",
+    nombre: "Ciutadella",
+    dias: 4,
+    orden: 0,
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "demo-fornells",
+    viaje_id: "demo-menorca-2026",
+    nombre: "Fornells",
+    dias: 3,
+    orden: 1,
+    creado_en: new Date().toISOString(),
+  },
+  // Ciudades para Escapada a los Pirineos
+  {
+    id: "demo-benasque",
+    viaje_id: "demo-pirineos-2026",
+    nombre: "Valle de Benasque",
+    dias: 2,
+    orden: 0,
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "demo-torla",
+    viaje_id: "demo-pirineos-2026",
+    nombre: "Torla-Ordesa",
+    dias: 2,
+    orden: 1,
+    creado_en: new Date().toISOString(),
+  },
 ];
+
+// Almacén mutable en memoria para persistencia local durante la sesión
+let localCities: Ciudad[] = [...DEMO_CITIES];
 
 export const DEMO_TASKS: Tarea[] = [
   {
@@ -130,7 +168,41 @@ export const DEMO_TASKS: Tarea[] = [
     vencimiento: "2026-10-28",
     creado_en: new Date().toISOString(),
   },
+  // Tareas para Un verano en Menorca
+  {
+    id: "task-menorca-1",
+    viaje_id: "demo-menorca-2026",
+    ciudad_id: "demo-ciutadella",
+    titulo: "Reservar paseo en barco por calas vírgenes",
+    asignado_a: null,
+    estado: "pendiente",
+    vencimiento: "2026-07-13",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "task-menorca-2",
+    viaje_id: "demo-menorca-2026",
+    ciudad_id: "demo-fornells",
+    titulo: "Degustar caldereta de langosta en Fornells",
+    asignado_a: null,
+    estado: "pendiente",
+    vencimiento: "2026-07-16",
+    creado_en: new Date().toISOString(),
+  },
+  // Tareas para Escapada a los Pirineos
+  {
+    id: "task-pirineos-1",
+    viaje_id: "demo-pirineos-2026",
+    ciudad_id: "demo-torla",
+    titulo: "Ruta de la cascada Cola de Caballo (Ordesa)",
+    asignado_a: null,
+    estado: "pendiente",
+    vencimiento: "2026-04-03",
+    creado_en: new Date().toISOString(),
+  },
 ];
+
+let localTasks: Tarea[] = [...DEMO_TASKS];
 
 export const DEMO_EXPENSES: Gasto[] = [
   {
@@ -211,7 +283,37 @@ export const DEMO_EXPENSES: Gasto[] = [
     referencia_actividad_id: null,
     creado_en: new Date().toISOString(),
   },
+  // Gastos para Un verano en Menorca
+  {
+    id: "exp-menorca-1",
+    viaje_id: "demo-menorca-2026",
+    categoria: "alojamiento",
+    titulo: "Alojamiento en Ciutadella",
+    monto: 1100,
+    pagado_por: null,
+    estado: "aprobado",
+    referencia_transporte_id: null,
+    referencia_hotel_id: null,
+    referencia_actividad_id: null,
+    creado_en: new Date().toISOString(),
+  },
+  // Gastos para Pirineos
+  {
+    id: "exp-pirineos-1",
+    viaje_id: "demo-pirineos-2026",
+    categoria: "alojamiento",
+    titulo: "Refugio en Ordesa",
+    monto: 540,
+    pagado_por: null,
+    estado: "aprobado",
+    referencia_transporte_id: null,
+    referencia_hotel_id: null,
+    referencia_actividad_id: null,
+    creado_en: new Date().toISOString(),
+  },
 ];
+
+let localExpenses: Gasto[] = [...DEMO_EXPENSES];
 
 // ============================================================
 // SERVICIOS CRUD CONECTADOS A SUPABASE
@@ -432,7 +534,9 @@ export const tripService = {
       tripId.startsWith("demo-") ||
       tripId.startsWith("trip-")
     ) {
-      return DEMO_CITIES;
+      return localCities
+        .filter((c) => c.viaje_id === tripId)
+        .sort((a, b) => a.orden - b.orden);
     }
 
     try {
@@ -444,12 +548,12 @@ export const tripService = {
 
       if (error || !data) {
         console.warn("Error cargando ciudades:", error?.message);
-        return DEMO_CITIES;
+        return [];
       }
 
       return data;
     } catch {
-      return DEMO_CITIES;
+      return [];
     }
   },
 
@@ -464,14 +568,18 @@ export const tripService = {
       city.viaje_id.startsWith("demo-") ||
       city.viaje_id.startsWith("trip-")
     ) {
+      const existingInTrip = localCities.filter(
+        (c) => c.viaje_id === city.viaje_id,
+      );
       const demoCity: Ciudad = {
         id: `city-${Date.now()}`,
         viaje_id: city.viaje_id,
         nombre: city.nombre,
         dias: city.dias ?? 1,
-        orden: city.orden ?? 0,
+        orden: city.orden ?? existingInTrip.length,
         creado_en: new Date().toISOString(),
       };
+      localCities.push(demoCity);
       return { data: demoCity };
     }
 
@@ -493,6 +601,37 @@ export const tripService = {
   },
 
   /**
+   * Elimina una ciudad de un viaje
+   */
+  async deleteCity(
+    cityId: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    if (
+      !isSupabaseConfigured ||
+      cityId.startsWith("demo-") ||
+      cityId.startsWith("city-")
+    ) {
+      localCities = localCities.filter((c) => c.id !== cityId);
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("ciudades")
+        .delete()
+        .eq("id", cityId);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al eliminar ciudad",
+      };
+    }
+  },
+
+  /**
    * Carga las tareas de un viaje
    */
   async getTasks(tripId: string): Promise<Tarea[]> {
@@ -501,7 +640,7 @@ export const tripService = {
       tripId.startsWith("demo-") ||
       tripId.startsWith("trip-")
     ) {
-      return DEMO_TASKS;
+      return localTasks.filter((t) => t.viaje_id === tripId);
     }
 
     try {
@@ -513,12 +652,12 @@ export const tripService = {
 
       if (error || !data) {
         console.warn("Error cargando tareas:", error?.message);
-        return DEMO_TASKS;
+        return [];
       }
 
       return data;
     } catch {
-      return DEMO_TASKS;
+      return [];
     }
   },
 
@@ -543,6 +682,7 @@ export const tripService = {
         vencimiento: task.vencimiento ?? null,
         creado_en: new Date().toISOString(),
       };
+      localTasks.push(demoTask);
       return { data: demoTask };
     }
 
@@ -575,6 +715,9 @@ export const tripService = {
       taskId.startsWith("task-") ||
       taskId.startsWith("demo-")
     ) {
+      localTasks = localTasks.map((t) =>
+        t.id === taskId ? { ...t, ...updates } : t,
+      );
       return { success: true };
     }
 
@@ -603,7 +746,7 @@ export const tripService = {
       tripId.startsWith("demo-") ||
       tripId.startsWith("trip-")
     ) {
-      return DEMO_EXPENSES;
+      return localExpenses.filter((g) => g.viaje_id === tripId);
     }
 
     try {
@@ -615,12 +758,12 @@ export const tripService = {
 
       if (error || !data) {
         console.warn("Error cargando gastos:", error?.message);
-        return DEMO_EXPENSES;
+        return [];
       }
 
       return data;
     } catch {
-      return DEMO_EXPENSES;
+      return [];
     }
   },
 
@@ -648,6 +791,7 @@ export const tripService = {
         referencia_actividad_id: expense.referencia_actividad_id ?? null,
         creado_en: new Date().toISOString(),
       };
+      localExpenses.push(demoExp);
       return { data: demoExp };
     }
 
@@ -676,6 +820,9 @@ export const tripService = {
     updates: GastoUpdate,
   ): Promise<{ success: boolean; error?: string }> {
     if (!isSupabaseConfigured || expenseId.startsWith("exp-")) {
+      localExpenses = localExpenses.map((g) =>
+        g.id === expenseId ? { ...g, ...updates } : g,
+      );
       return { success: true };
     }
 
@@ -702,6 +849,7 @@ export const tripService = {
     expenseId: string,
   ): Promise<{ success: boolean; error?: string }> {
     if (!isSupabaseConfigured || expenseId.startsWith("exp-")) {
+      localExpenses = localExpenses.filter((g) => g.id !== expenseId);
       return { success: true };
     }
 
