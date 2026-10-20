@@ -1,7 +1,9 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { Destination } from "./DestinationsSlider"
 import type { TripOption } from "./Sidebar"
 import type { HeroData } from "./EditHeroModal"
+import { tripService } from "@/lib/tripService"
+import type { Transporte } from "@/types/database"
 
 interface ItineraryViewProps {
   trip: TripOption
@@ -88,6 +90,27 @@ export function ItineraryView({
   const [activeMenuCityId, setActiveMenuCityId] = useState<string | null>(null)
   const [cityToDelete, setCityToDelete] = useState<Destination | null>(null)
   const [showAddTransportNotice, setShowAddTransportNotice] = useState(false)
+  const [cityTransports, setCityTransports] = useState<Record<string, Transporte[]>>({})
+
+  useEffect(() => {
+    let isMounted = true
+    Promise.all(
+      destinations.map(async (d) => {
+        const trs = await tripService.getTransports(d.id)
+        return { cityId: d.id, trs }
+      })
+    ).then((results) => {
+      if (!isMounted) return
+      const map: Record<string, Transporte[]> = {}
+      results.forEach((r) => {
+        map[r.cityId] = r.trs
+      })
+      setCityTransports(map)
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [destinations])
 
   // Calculate total nights and days
   const totalNights = destinations.reduce((acc, d) => acc + (d.nights || 1), 0)
@@ -915,9 +938,23 @@ export function ItineraryView({
                             <circle cx="16" cy="15" r="1" />
                           </svg>
                           <span className="truncate">
-                            {idx === 0
-                              ? "Preferido: Tren Intercidades · Comboios de Portugal"
-                              : `Traslado ${prevCityName} → ${city.name} pendiente`}
+                            {(() => {
+                              const transports = cityTransports[city.id] || []
+                              const chosen = transports.find((t) => t.estado_seleccion === "elegido")
+                              if (chosen) {
+                                return `Elegido: ${chosen.nombre_linea || chosen.tipo.toUpperCase()}`
+                              }
+                              const preferred = transports.find((t) => t.estado_seleccion === "preferido")
+                              if (preferred) {
+                                return `Preferido: ${preferred.nombre_linea || preferred.tipo.toUpperCase()}`
+                              }
+                              if (transports.length > 0) {
+                                return `${transports.length} ${transports.length === 1 ? "opción" : "opciones"} de transporte`
+                              }
+                              return idx === 0
+                                ? "Preferido: Tren Intercidades · Comboios de Portugal"
+                                : `Traslado ${prevCityName ? `${prevCityName} → ` : ""}${city.name} pendiente`
+                            })()}
                           </span>
                         </div>
 

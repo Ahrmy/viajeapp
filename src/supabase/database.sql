@@ -87,27 +87,59 @@ CREATE TABLE IF NOT EXISTS actividades (
 
 -- Hoteles posibles por ciudad
 CREATE TABLE IF NOT EXISTS hoteles (
-  id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  ciudad_id uuid NOT NULL REFERENCES ciudades(id) ON DELETE CASCADE,
-  nombre    text NOT NULL,
-  noches    integer DEFAULT 1,
-  costo     numeric(12,2) DEFAULT 0,
-  reservado boolean NOT NULL DEFAULT false,
-  creado_en timestamptz NOT NULL DEFAULT now()
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  ciudad_id        uuid NOT NULL REFERENCES ciudades(id) ON DELETE CASCADE,
+  nombre           text NOT NULL,
+  noches           integer DEFAULT 1,
+  costo            numeric(12,2) DEFAULT 0,
+  reservado        boolean NOT NULL DEFAULT false,
+  estado_seleccion text NOT NULL DEFAULT 'sin_nada' CHECK (estado_seleccion IN ('preferido', 'elegido', 'sin_nada')),
+  enlace_reserva   text,
+  direccion        text,
+  estrellas        text,
+  foto             text,
+  detalles         text,
+  notas            text,
+  creado_en        timestamptz NOT NULL DEFAULT now()
 );
+
+-- Migraciones seguras para hoteles
+ALTER TABLE hoteles ADD COLUMN IF NOT EXISTS estado_seleccion text NOT NULL DEFAULT 'sin_nada' CHECK (estado_seleccion IN ('preferido', 'elegido', 'sin_nada'));
+ALTER TABLE hoteles ADD COLUMN IF NOT EXISTS enlace_reserva text;
+ALTER TABLE hoteles ADD COLUMN IF NOT EXISTS direccion text;
+ALTER TABLE hoteles ADD COLUMN IF NOT EXISTS estrellas text;
+ALTER TABLE hoteles ADD COLUMN IF NOT EXISTS foto text;
+ALTER TABLE hoteles ADD COLUMN IF NOT EXISTS detalles text;
+ALTER TABLE hoteles ADD COLUMN IF NOT EXISTS notas text;
 
 -- Transportes hacia cada ciudad
 CREATE TABLE IF NOT EXISTS transportes (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  ciudad_id  uuid NOT NULL REFERENCES ciudades(id) ON DELETE CASCADE,
-  tipo       tipo_transporte NOT NULL DEFAULT 'otro',
-  origen     text,
-  destino    text,
-  fecha_hora timestamptz,
-  costo      numeric(12,2) DEFAULT 0,
-  reservado  boolean NOT NULL DEFAULT false,
-  creado_en  timestamptz NOT NULL DEFAULT now()
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  ciudad_id        uuid NOT NULL REFERENCES ciudades(id) ON DELETE CASCADE,
+  tipo             tipo_transporte NOT NULL DEFAULT 'otro',
+  origen           text,
+  destino          text,
+  fecha_hora       timestamptz,
+  costo            numeric(12,2) DEFAULT 0,
+  reservado        boolean NOT NULL DEFAULT false,
+  estado_seleccion text NOT NULL DEFAULT 'sin_nada' CHECK (estado_seleccion IN ('preferido', 'elegido', 'sin_nada')),
+  nombre_linea     text,
+  duracion         text,
+  hora_salida      text,
+  hora_llegada     text,
+  notas            text,
+  enlace_compra    text,
+  creado_en        timestamptz NOT NULL DEFAULT now()
 );
+
+-- Migraciones seguras para transportes
+ALTER TABLE transportes ADD COLUMN IF NOT EXISTS estado_seleccion text NOT NULL DEFAULT 'sin_nada' CHECK (estado_seleccion IN ('preferido', 'elegido', 'sin_nada'));
+ALTER TABLE transportes ADD COLUMN IF NOT EXISTS nombre_linea text;
+ALTER TABLE transportes ADD COLUMN IF NOT EXISTS duracion text;
+ALTER TABLE transportes ADD COLUMN IF NOT EXISTS hora_salida text;
+ALTER TABLE transportes ADD COLUMN IF NOT EXISTS hora_llegada text;
+ALTER TABLE transportes ADD COLUMN IF NOT EXISTS notas text;
+ALTER TABLE transportes ADD COLUMN IF NOT EXISTS enlace_compra text;
 
 -- Tareas a dos niveles: del viaje (ciudad_id NULL) o de una ciudad
 CREATE TABLE IF NOT EXISTS tareas (

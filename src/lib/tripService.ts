@@ -14,7 +14,13 @@ import type {
   GastoUpdate,
   Actividad,
   Hotel,
+  HotelInsert,
+  HotelUpdate,
+  EstadoSeleccionHotel,
   Transporte,
+  TransporteInsert,
+  TransporteUpdate,
+  EstadoSeleccionTransporte,
   RolMiembro,
 } from "@/types/database";
 
@@ -28,6 +34,9 @@ export const DEFAULT_COVER_IMAGE = "/images/default-cover.jpg";
 
 // Foto por defecto para nuevos lugares / ciudades del itinerario
 export const DEFAULT_DESTINATION_IMAGE = "/images/default-destination.jpg";
+
+// Foto por defecto para alojamientos / hoteles
+export const DEFAULT_HOTEL_IMAGE = "/images/default-hotel.jpg";
 
 // Bucket de Supabase Storage para las portadas de los viajes
 export const COVER_BUCKET = "portadas";
@@ -342,6 +351,168 @@ export const DEMO_EXPENSES: Gasto[] = [
 ];
 
 let localExpenses: Gasto[] = [...DEMO_EXPENSES];
+
+export const DEMO_TRANSPORTS: Transporte[] = [
+  {
+    id: "trans-lisboa-1",
+    ciudad_id: "demo-lisboa",
+    tipo: "tren",
+    nombre_linea: "Comboios de Portugal · Intercidades",
+    origen: "Faro",
+    destino: "Lisboa Oriente",
+    hora_salida: "08:22",
+    hora_llegada: "11:46",
+    duracion: "3 h 24 min",
+    costo: 94,
+    reservado: true,
+    estado_seleccion: "preferido",
+    notas: "2.ª clase · Directo · Asientos familiares",
+    enlace_compra: "https://www.cp.pt/passageiros/pt/comprar-bilhetes",
+    fecha_hora: "2026-11-06T08:22:00Z",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "trans-lisboa-2",
+    ciudad_id: "demo-lisboa",
+    tipo: "bus",
+    nombre_linea: "Rede Expressos · Directo",
+    origen: "Faro Terminal",
+    destino: "Lisboa Sete Rios",
+    hora_salida: "09:00",
+    hora_llegada: "12:15",
+    duracion: "3 h 15 min",
+    costo: 78,
+    reservado: false,
+    estado_seleccion: "sin_nada",
+    notas: "Wi-Fi a bordo y equipaje incluido",
+    enlace_compra: "https://www.rede-expressos.pt/",
+    fecha_hora: "2026-11-06T09:00:00Z",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "trans-sintra-1",
+    ciudad_id: "demo-sintra",
+    tipo: "tren",
+    nombre_linea: "CP Urbanos de Lisboa · Línea Sintra",
+    origen: "Lisboa Rossio",
+    destino: "Sintra",
+    hora_salida: "10:11",
+    hora_llegada: "10:51",
+    duracion: "40 min",
+    costo: 18,
+    reservado: true,
+    estado_seleccion: "elegido",
+    notas: "Pase Viva Viagem · Salidas cada 20 min",
+    enlace_compra: "https://www.cp.pt/passageiros/pt",
+    fecha_hora: "2026-11-09T10:11:00Z",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "trans-oporto-1",
+    ciudad_id: "demo-oporto",
+    tipo: "tren",
+    nombre_linea: "Alfa Pendular · Primera Clase",
+    origen: "Lisboa Santa Apolónia",
+    destino: "Porto Campanhã",
+    hora_salida: "11:00",
+    hora_llegada: "13:58",
+    duracion: "2 h 58 min",
+    costo: 132,
+    reservado: false,
+    estado_seleccion: "preferido",
+    notas: "Alta velocidad con cafetería a bordo",
+    enlace_compra: "https://www.cp.pt/passageiros/pt/comprar-bilhetes",
+    fecha_hora: "2026-11-10T11:00:00Z",
+    creado_en: new Date().toISOString(),
+  },
+];
+
+let localTransports: Transporte[] = [...DEMO_TRANSPORTS];
+
+export const DEMO_HOTELS: Hotel[] = [
+  {
+    id: "hotel-pessoa",
+    ciudad_id: "demo-lisboa",
+    nombre: "Lisboa Pessoa Hotel",
+    direccion: "Chiado · A 6 min de Rossio",
+    estrellas: "4 estrellas · Piscina interior",
+    detalles: "2 hab. dobles · Desayuno incluido",
+    noches: 3,
+    costo: 810,
+    reservado: true,
+    estado_seleccion: "elegido",
+    enlace_reserva: "https://www.lisboapessoahotel.com/",
+    foto: "/images/hotel-pessoa.png",
+    notas: "Excelente ubicación para recorrer Chiado y Bairro Alto caminando.",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "hotel-mystory",
+    ciudad_id: "demo-lisboa",
+    nombre: "My Story Hotel Rossio",
+    direccion: "Baixa · Frente a la plaza de Rossio",
+    estrellas: "3 estrellas · Ubicación céntrica",
+    detalles: "2 hab. dobles · Recepción 24 h",
+    noches: 3,
+    costo: 660,
+    reservado: false,
+    estado_seleccion: "preferido",
+    enlace_reserva: "https://www.mystoryhotels.com/",
+    foto: "/images/hotel-mystory.png",
+    notas: "Muy cerca de la estación de tren de Rossio para ir a Sintra.",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "hotel-jam",
+    ciudad_id: "demo-lisboa",
+    nombre: "JAM Lisbon",
+    direccion: "Santos · Junto al Museo de Arte Antiguo",
+    estrellas: "3 estrellas · Terraza y piscina",
+    detalles: "Habitaciones familiares · Parking de pago",
+    noches: 3,
+    costo: 570,
+    reservado: false,
+    estado_seleccion: "sin_nada",
+    enlace_reserva: "https://www.jamhotels.com/",
+    foto: "/images/hotel-jam.png",
+    notas: "Diseño moderno, terraza en la azotea y vistas al río Tajo.",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "hotel-sintra-1",
+    ciudad_id: "demo-sintra",
+    nombre: "Sintra Boutique Hotel",
+    direccion: "Centro histórico de Sintra",
+    estrellas: "4 estrellas · Vistas a la sierra",
+    detalles: "Habitación familiar · Desayuno de la huerta",
+    noches: 1,
+    costo: 210,
+    reservado: true,
+    estado_seleccion: "elegido",
+    enlace_reserva: "https://www.sintraboutiquehotel.com/",
+    foto: "/images/hotel-pessoa.png",
+    notas: "A 5 minutos a pie del Palacio Nacional de Sintra.",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "hotel-porto-1",
+    ciudad_id: "demo-porto",
+    nombre: "PortoBay Flores",
+    direccion: "Rua das Flores · Ribeira",
+    estrellas: "5 estrellas · Spa & Piscina cubierta",
+    detalles: "2 habitaciones Deluxe · Desayuno buffet",
+    noches: 3,
+    costo: 720,
+    reservado: true,
+    estado_seleccion: "elegido",
+    enlace_reserva: "https://www.portobay.com/",
+    foto: "/images/hotel-mystory.png",
+    notas: "En la calle peatonal más bonita de Oporto.",
+    creado_en: new Date().toISOString(),
+  },
+];
+
+let localHotels: Hotel[] = [...DEMO_HOTELS];
 
 // ============================================================
 // SERVICIOS CRUD CONECTADOS A SUPABASE
@@ -945,8 +1116,8 @@ export const tripService = {
     if (!isSupabaseConfigured || cityId.startsWith("demo-")) {
       return {
         activities: [],
-        hotels: [],
-        transports: [],
+        hotels: localHotels.filter((h) => h.ciudad_id === cityId),
+        transports: localTransports.filter((t) => t.ciudad_id === cityId),
       };
     }
 
@@ -975,8 +1146,316 @@ export const tripService = {
         transports: trRes.data ?? [],
       };
     } catch {
-      return { activities: [], hotels: [], transports: [] };
+      return {
+        activities: [],
+        hotels: [],
+        transports: localTransports.filter((t) => t.ciudad_id === cityId),
+      };
     }
+  },
+
+  /**
+   * Obtiene todos los transportes de una ciudad
+   */
+  async getTransports(cityId: string): Promise<Transporte[]> {
+    if (!isSupabaseConfigured || cityId.startsWith("demo-")) {
+      return localTransports
+        .filter((t) => t.ciudad_id === cityId)
+        .sort((a, b) => new Date(a.creado_en).getTime() - new Date(b.creado_en).getTime());
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("transportes")
+        .select("*")
+        .eq("ciudad_id", cityId)
+        .order("creado_en", { ascending: true });
+
+      if (error || !data) return [];
+      return data;
+    } catch {
+      return localTransports.filter((t) => t.ciudad_id === cityId);
+    }
+  },
+
+  /**
+   * Añade una opción de transporte a una ciudad
+   */
+  async createTransport(
+    transport: TransporteInsert
+  ): Promise<{ data: Transporte | null; error?: string }> {
+    if (!isSupabaseConfigured || transport.ciudad_id.startsWith("demo-")) {
+      const demoTransport: Transporte = {
+        id: `trans-${Date.now()}`,
+        ciudad_id: transport.ciudad_id,
+        tipo: transport.tipo ?? "otro",
+        nombre_linea: transport.nombre_linea ?? null,
+        origen: transport.origen ?? null,
+        destino: transport.destino ?? null,
+        fecha_hora: transport.fecha_hora ?? null,
+        costo: transport.costo ?? 0,
+        reservado: transport.reservado ?? (transport.estado_seleccion === "elegido"),
+        estado_seleccion: transport.estado_seleccion ?? "sin_nada",
+        duracion: transport.duracion ?? null,
+        hora_salida: transport.hora_salida ?? null,
+        hora_llegada: transport.hora_llegada ?? null,
+        notas: transport.notas ?? null,
+        enlace_compra: transport.enlace_compra ?? null,
+        creado_en: new Date().toISOString(),
+      };
+      localTransports.push(demoTransport);
+      return { data: demoTransport };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("transportes")
+        .insert({
+          ciudad_id: transport.ciudad_id,
+          tipo: transport.tipo ?? "otro",
+          nombre_linea: transport.nombre_linea ?? null,
+          origen: transport.origen ?? null,
+          destino: transport.destino ?? null,
+          fecha_hora: transport.fecha_hora ?? null,
+          costo: transport.costo ?? 0,
+          reservado: transport.reservado ?? (transport.estado_seleccion === "elegido"),
+          estado_seleccion: transport.estado_seleccion ?? "sin_nada",
+          duracion: transport.duracion ?? null,
+          hora_salida: transport.hora_salida ?? null,
+          hora_llegada: transport.hora_llegada ?? null,
+          notas: transport.notas ?? null,
+          enlace_compra: transport.enlace_compra ?? null,
+        })
+        .select()
+        .single();
+
+      if (error) return { data: null, error: error.message };
+      return { data };
+    } catch (err: unknown) {
+      return {
+        data: null,
+        error: err instanceof Error ? err.message : "Error al guardar transporte",
+      };
+    }
+  },
+
+  /**
+   * Actualiza una opción de transporte
+   */
+  async updateTransport(
+    id: string,
+    updates: TransporteUpdate
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!isSupabaseConfigured || id.startsWith("trans-")) {
+      localTransports = localTransports.map((t) =>
+        t.id === id ? { ...t, ...updates } : t
+      );
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("transportes")
+        .update(updates)
+        .eq("id", id);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al actualizar transporte",
+      };
+    }
+  },
+
+  /**
+   * Elimina una opción de transporte
+   */
+  async deleteTransport(id: string): Promise<{ success: boolean; error?: string }> {
+    if (!isSupabaseConfigured || id.startsWith("trans-")) {
+      localTransports = localTransports.filter((t) => t.id !== id);
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("transportes")
+        .delete()
+        .eq("id", id);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al eliminar transporte",
+      };
+    }
+  },
+
+  /**
+   * Cambia el estado de selección de un transporte ('preferido' | 'elegido' | 'sin_nada')
+   */
+  async setTransportSelection(
+    _cityId: string,
+    transportId: string,
+    selection: EstadoSeleccionTransporte
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.updateTransport(transportId, {
+      estado_seleccion: selection,
+      reservado: selection === "elegido",
+    });
+  },
+
+  /**
+   * Obtiene todos los alojamientos/hoteles de una ciudad
+   */
+  async getHotels(cityId: string): Promise<Hotel[]> {
+    if (!isSupabaseConfigured || cityId.startsWith("demo-")) {
+      return localHotels
+        .filter((h) => h.ciudad_id === cityId)
+        .sort((a, b) => new Date(a.creado_en).getTime() - new Date(b.creado_en).getTime());
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("hoteles")
+        .select("*")
+        .eq("ciudad_id", cityId)
+        .order("creado_en", { ascending: true });
+
+      if (error || !data) return [];
+      return data;
+    } catch {
+      return localHotels.filter((h) => h.ciudad_id === cityId);
+    }
+  },
+
+  /**
+   * Añade una opción de alojamiento/hotel a una ciudad
+   */
+  async createHotel(
+    hotel: HotelInsert
+  ): Promise<{ data: Hotel | null; error?: string }> {
+    if (!isSupabaseConfigured || hotel.ciudad_id.startsWith("demo-")) {
+      const demoHotel: Hotel = {
+        id: `hotel-${Date.now()}`,
+        ciudad_id: hotel.ciudad_id,
+        nombre: hotel.nombre,
+        noches: hotel.noches ?? 1,
+        costo: hotel.costo ?? 0,
+        reservado: hotel.reservado ?? (hotel.estado_seleccion === "elegido"),
+        estado_seleccion: hotel.estado_seleccion ?? "sin_nada",
+        enlace_reserva: hotel.enlace_reserva ?? null,
+        direccion: hotel.direccion ?? null,
+        estrellas: hotel.estrellas ?? null,
+        foto: hotel.foto || DEFAULT_HOTEL_IMAGE,
+        detalles: hotel.detalles ?? null,
+        notas: hotel.notas ?? null,
+        creado_en: new Date().toISOString(),
+      };
+      localHotels.push(demoHotel);
+      return { data: demoHotel };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("hoteles")
+        .insert({
+          ciudad_id: hotel.ciudad_id,
+          nombre: hotel.nombre,
+          noches: hotel.noches ?? 1,
+          costo: hotel.costo ?? 0,
+          reservado: hotel.reservado ?? (hotel.estado_seleccion === "elegido"),
+          estado_seleccion: hotel.estado_seleccion ?? "sin_nada",
+          enlace_reserva: hotel.enlace_reserva ?? null,
+          direccion: hotel.direccion ?? null,
+          estrellas: hotel.estrellas ?? null,
+          foto: hotel.foto || DEFAULT_HOTEL_IMAGE,
+          detalles: hotel.detalles ?? null,
+          notas: hotel.notas ?? null,
+        })
+        .select()
+        .single();
+
+      if (error) return { data: null, error: error.message };
+      return { data };
+    } catch (err: unknown) {
+      return {
+        data: null,
+        error: err instanceof Error ? err.message : "Error al guardar alojamiento",
+      };
+    }
+  },
+
+  /**
+   * Actualiza una opción de alojamiento/hotel
+   */
+  async updateHotel(
+    id: string,
+    updates: HotelUpdate
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!isSupabaseConfigured || id.startsWith("hotel-")) {
+      localHotels = localHotels.map((h) =>
+        h.id === id ? { ...h, ...updates } : h
+      );
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("hoteles")
+        .update(updates)
+        .eq("id", id);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al actualizar alojamiento",
+      };
+    }
+  },
+
+  /**
+   * Elimina una opción de alojamiento/hotel
+   */
+  async deleteHotel(id: string): Promise<{ success: boolean; error?: string }> {
+    if (!isSupabaseConfigured || id.startsWith("hotel-")) {
+      localHotels = localHotels.filter((h) => h.id !== id);
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("hoteles")
+        .delete()
+        .eq("id", id);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al eliminar alojamiento",
+      };
+    }
+  },
+
+  /**
+   * Cambia el estado de selección de un hotel ('preferido' | 'elegido' | 'sin_nada')
+   */
+  async setHotelSelection(
+    _cityId: string,
+    hotelId: string,
+    selection: EstadoSeleccionHotel
+  ): Promise<{ success: boolean; error?: string }> {
+    return this.updateHotel(hotelId, {
+      estado_seleccion: selection,
+      reservado: selection === "elegido",
+    });
   },
 
   /**

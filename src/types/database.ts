@@ -10,6 +10,8 @@ export type RolMiembro = "owner" | "editor" | "viewer"
 export type EstadoGasto = "pendiente" | "aprobado" | "rechazado"
 export type TipoTransporte = "avion" | "tren" | "bus" | "coche" | "ferry" | "otro"
 export type EstadoTarea = "pendiente" | "en_curso" | "hecha"
+export type EstadoSeleccionTransporte = "preferido" | "elegido" | "sin_nada"
+export type EstadoSeleccionHotel = "preferido" | "elegido" | "sin_nada"
 
 export interface Database {
   public: {
@@ -154,6 +156,13 @@ export interface Database {
           noches: number | null
           costo: number | null
           reservado: boolean
+          estado_seleccion: EstadoSeleccionHotel
+          enlace_reserva?: string | null
+          direccion?: string | null
+          estrellas?: string | null
+          foto?: string | null
+          detalles?: string | null
+          notas?: string | null
           creado_en: string
         }
         Insert: {
@@ -163,6 +172,13 @@ export interface Database {
           noches?: number | null
           costo?: number | null
           reservado?: boolean
+          estado_seleccion?: EstadoSeleccionHotel
+          enlace_reserva?: string | null
+          direccion?: string | null
+          estrellas?: string | null
+          foto?: string | null
+          detalles?: string | null
+          notas?: string | null
           creado_en?: string
         }
         Update: {
@@ -172,6 +188,13 @@ export interface Database {
           noches?: number | null
           costo?: number | null
           reservado?: boolean
+          estado_seleccion?: EstadoSeleccionHotel
+          enlace_reserva?: string | null
+          direccion?: string | null
+          estrellas?: string | null
+          foto?: string | null
+          detalles?: string | null
+          notas?: string | null
           creado_en?: string
         }
         Relationships: []
@@ -186,6 +209,13 @@ export interface Database {
           fecha_hora: string | null
           costo: number | null
           reservado: boolean
+          estado_seleccion: EstadoSeleccionTransporte
+          nombre_linea?: string | null
+          duracion?: string | null
+          hora_salida?: string | null
+          hora_llegada?: string | null
+          notas?: string | null
+          enlace_compra?: string | null
           creado_en: string
         }
         Insert: {
@@ -197,6 +227,13 @@ export interface Database {
           fecha_hora?: string | null
           costo?: number | null
           reservado?: boolean
+          estado_seleccion?: EstadoSeleccionTransporte
+          nombre_linea?: string | null
+          duracion?: string | null
+          hora_salida?: string | null
+          hora_llegada?: string | null
+          notas?: string | null
+          enlace_compra?: string | null
           creado_en?: string
         }
         Update: {
@@ -208,6 +245,13 @@ export interface Database {
           fecha_hora?: string | null
           costo?: number | null
           reservado?: boolean
+          estado_seleccion?: EstadoSeleccionTransporte
+          nombre_linea?: string | null
+          duracion?: string | null
+          hora_salida?: string | null
+          hora_llegada?: string | null
+          notas?: string | null
+          enlace_compra?: string | null
           creado_en?: string
         }
         Relationships: []
@@ -343,5 +387,9 @@ export type GastoUpdate = Database["public"]["Tables"]["gastos"]["Update"]
 export type ViajeMiembro = Database["public"]["Tables"]["viaje_miembros"]["Row"]
 export type Actividad = Database["public"]["Tables"]["actividades"]["Row"]
 export type Hotel = Database["public"]["Tables"]["hoteles"]["Row"]
+export type HotelInsert = Database["public"]["Tables"]["hoteles"]["Insert"]
+export type HotelUpdate = Database["public"]["Tables"]["hoteles"]["Update"]
 export type Transporte = Database["public"]["Tables"]["transportes"]["Row"]
+export type TransporteInsert = Database["public"]["Tables"]["transportes"]["Insert"]
+export type TransporteUpdate = Database["public"]["Tables"]["transportes"]["Update"]
 export type PresupuestoResumen = Database["public"]["Views"]["presupuesto_resumen"]["Row"]

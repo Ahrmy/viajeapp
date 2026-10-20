@@ -1,7 +1,130 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { tripService, DEFAULT_DESTINATION_IMAGE } from "@/lib/tripService"
+import { tripService, DEFAULT_DESTINATION_IMAGE, DEFAULT_HOTEL_IMAGE } from "@/lib/tripService"
 import type { Destination } from "./DestinationsSlider"
+import type {
+  Transporte,
+  EstadoSeleccionTransporte,
+  TipoTransporte,
+  Hotel,
+  EstadoSeleccionHotel,
+} from "@/types/database"
+import {
+  CreateTransportModal,
+  type TransportFormData,
+} from "./CreateTransportModal"
+import {
+  CreateHotelModal,
+  type HotelFormData,
+} from "./CreateHotelModal"
+
+function getTransportIcon(tipo: TipoTransporte, className = "w-4 h-4") {
+  switch (tipo) {
+    case "tren":
+      return (
+        <svg
+          className={className}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="4" y="3" width="16" height="16" rx="2" />
+          <path d="M4 11h16" />
+          <path d="M12 3v8" />
+          <path d="m8 19-2 3" />
+          <path d="m16 19 2 3" />
+          <circle cx="8" cy="15" r="1" />
+          <circle cx="16" cy="15" r="1" />
+        </svg>
+      )
+    case "bus":
+      return (
+        <svg
+          className={className}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M8 6v6" />
+          <path d="M16 6v6" />
+          <rect x="4" y="3" width="16" height="15" rx="3" />
+          <path d="M4 11h16" />
+          <path d="m6 18-1 3" />
+          <path d="m18 18 1 3" />
+        </svg>
+      )
+    case "avion":
+      return (
+        <svg
+          className={className}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
+        </svg>
+      )
+    case "ferry":
+      return (
+        <svg
+          className={className}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M2 20a4 4 0 0 0 4-2 4 4 0 0 1 4-2 4 4 0 0 1 4 2 4 4 0 0 0 4 2 4 4 0 0 0 4-2" />
+          <path d="M4 14l1.5-6h13L20 14" />
+          <path d="M12 3v5" />
+          <path d="M8 8h8" />
+        </svg>
+      )
+    case "coche":
+      return (
+        <svg
+          className={className}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9C2.1 11.2 2 11.6 2 12v4c0 .6.4 1 1 1h2" />
+          <circle cx="7" cy="17" r="2" />
+          <path d="M9 17h6" />
+          <circle cx="17" cy="17" r="2" />
+        </svg>
+      )
+    default:
+      return (
+        <svg
+          className={className}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="16" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+      )
+  }
+}
 
 interface CityDetailViewProps {
   cityId?: string
@@ -38,13 +161,15 @@ export function CityDetailView({
     cityData?.subtitle ||
     `Miradores, azulejos y momentos para disfrutar juntos en ${cityName}. Aquí continúa vuestra historia.`
 
-  // Selected transport (train vs bus)
-  const [selectedTransport, setSelectedTransport] = useState<"train" | "bus">(
-    "train"
-  )
+  // Transports state and modals
+  const [transportsList, setTransportsList] = useState<Transporte[]>([])
+  const [isAddTransportOpen, setIsAddTransportOpen] = useState(false)
+  const [editingTransport, setEditingTransport] = useState<Transporte | null>(null)
 
-  // Selected hotel (pessoa, mystory, jam)
-  const [selectedHotel, setSelectedHotel] = useState<string>("pessoa")
+  // Hotels state and modals
+  const [hotelsList, setHotelsList] = useState<Hotel[]>([])
+  const [isAddHotelOpen, setIsAddHotelOpen] = useState(false)
+  const [editingHotel, setEditingHotel] = useState<Hotel | null>(null)
 
   // Draft activity form state
   const [isActivityFormOpen, setIsActivityFormOpen] = useState(true)
@@ -61,7 +186,7 @@ export function CityDetailView({
     Array<{ time: string; title: string; location: string }>
   >([])
 
-  // Cargar actividades de Supabase para esta ciudad si existen
+  // Cargar actividades, hoteles y transportes de Supabase para esta ciudad si existen
   useEffect(() => {
     if (!cityId) return
     let isMounted = true
@@ -77,11 +202,230 @@ export function CityDetailView({
       } else {
         setDay2ExtraActivities([])
       }
+
+      if (details.transports && details.transports.length > 0) {
+        setTransportsList(details.transports)
+      } else {
+        tripService.getTransports(cityId).then((tr) => {
+          if (isMounted) setTransportsList(tr)
+        })
+      }
+
+      if (details.hotels && details.hotels.length > 0) {
+        setHotelsList(details.hotels)
+      } else {
+        tripService.getHotels(cityId).then((ht) => {
+          if (isMounted) setHotelsList(ht)
+        })
+      }
     })
     return () => {
       isMounted = false
     }
   }, [cityId, cityName])
+
+  const handleSaveTransport = async (data: TransportFormData) => {
+    if (data.id) {
+      await tripService.updateTransport(data.id, {
+        tipo: data.tipo,
+        nombre_linea: data.nombre_linea,
+        origen: data.origen,
+        destino: data.destino,
+        hora_salida: data.hora_salida,
+        hora_llegada: data.hora_llegada,
+        duracion: data.duracion,
+        costo: data.costo,
+        estado_seleccion: data.estado_seleccion,
+        reservado: data.estado_seleccion === "elegido",
+        notas: data.notas,
+        enlace_compra: data.enlace_compra,
+      })
+
+      setTransportsList((prev) =>
+        prev.map((t) =>
+          t.id === data.id
+            ? {
+                ...t,
+                tipo: data.tipo,
+                nombre_linea: data.nombre_linea,
+                origen: data.origen,
+                destino: data.destino,
+                hora_salida: data.hora_salida,
+                hora_llegada: data.hora_llegada,
+                duracion: data.duracion,
+                costo: data.costo,
+                estado_seleccion: data.estado_seleccion,
+                reservado: data.estado_seleccion === "elegido",
+                notas: data.notas,
+                enlace_compra: data.enlace_compra,
+              }
+            : t
+        )
+      )
+    } else {
+      if (!cityId) return
+      const res = await tripService.createTransport({
+        ciudad_id: cityId,
+        tipo: data.tipo,
+        nombre_linea: data.nombre_linea,
+        origen: data.origen,
+        destino: data.destino,
+        hora_salida: data.hora_salida,
+        hora_llegada: data.hora_llegada,
+        duracion: data.duracion,
+        costo: data.costo,
+        estado_seleccion: data.estado_seleccion,
+        reservado: data.estado_seleccion === "elegido",
+        notas: data.notas,
+        enlace_compra: data.enlace_compra,
+      })
+
+      if (res.data) {
+        setTransportsList((prev) => [...prev, res.data!])
+      }
+    }
+    setIsAddTransportOpen(false)
+    setEditingTransport(null)
+  }
+
+  const handleDeleteTransport = async (transportId: string) => {
+    setTransportsList((prev) => prev.filter((t) => t.id !== transportId))
+    await tripService.deleteTransport(transportId)
+  }
+
+  const handleSelectionChange = async (
+    transportId: string,
+    newStatus: EstadoSeleccionTransporte
+  ) => {
+    setTransportsList((prev) =>
+      prev.map((t) =>
+        t.id === transportId
+          ? {
+              ...t,
+              estado_seleccion: newStatus,
+              reservado: newStatus === "elegido",
+            }
+          : newStatus === "elegido" && t.estado_seleccion === "elegido"
+          ? { ...t, estado_seleccion: "sin_nada", reservado: false }
+          : t
+      )
+    )
+    if (cityId) {
+      await tripService.setTransportSelection(cityId, transportId, newStatus)
+    }
+  }
+
+  const handleToggleTransportHeart = async (
+    transportId: string,
+    currentStatus: EstadoSeleccionTransporte,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation()
+    const nextStatus: EstadoSeleccionTransporte =
+      currentStatus === "preferido" ? "sin_nada" : "preferido"
+    await handleSelectionChange(transportId, nextStatus)
+  }
+
+  const handleSaveHotel = async (data: HotelFormData) => {
+    if (data.id) {
+      await tripService.updateHotel(data.id, {
+        nombre: data.nombre,
+        direccion: data.direccion,
+        estrellas: data.estrellas,
+        detalles: data.detalles,
+        noches: data.noches,
+        costo: data.costo,
+        enlace_reserva: data.enlace_reserva,
+        foto: data.foto,
+        estado_seleccion: data.estado_seleccion,
+        reservado: data.estado_seleccion === "elegido",
+        notas: data.notas,
+      })
+
+      setHotelsList((prev) =>
+        prev.map((h) =>
+          h.id === data.id
+            ? {
+                ...h,
+                nombre: data.nombre,
+                direccion: data.direccion,
+                estrellas: data.estrellas,
+                detalles: data.detalles,
+                noches: data.noches,
+                costo: data.costo,
+                enlace_reserva: data.enlace_reserva,
+                foto: data.foto,
+                estado_seleccion: data.estado_seleccion,
+                reservado: data.estado_seleccion === "elegido",
+                notas: data.notas,
+              }
+            : data.estado_seleccion === "elegido" && h.estado_seleccion === "elegido"
+            ? { ...h, estado_seleccion: "sin_nada", reservado: false }
+            : h
+        )
+      )
+    } else {
+      if (!cityId) return
+      const res = await tripService.createHotel({
+        ciudad_id: cityId,
+        nombre: data.nombre,
+        direccion: data.direccion,
+        estrellas: data.estrellas,
+        detalles: data.detalles,
+        noches: data.noches,
+        costo: data.costo,
+        enlace_reserva: data.enlace_reserva,
+        foto: data.foto,
+        estado_seleccion: data.estado_seleccion,
+        reservado: data.estado_seleccion === "elegido",
+        notas: data.notas,
+      })
+
+      if (res.data) {
+        setHotelsList((prev) => [...prev, res.data!])
+      }
+    }
+    setIsAddHotelOpen(false)
+    setEditingHotel(null)
+  }
+
+  const handleDeleteHotel = async (hotelId: string) => {
+    setHotelsList((prev) => prev.filter((h) => h.id !== hotelId))
+    await tripService.deleteHotel(hotelId)
+  }
+
+  const handleHotelSelectionChange = async (
+    hotelId: string,
+    newStatus: EstadoSeleccionHotel
+  ) => {
+    setHotelsList((prev) =>
+      prev.map((h) =>
+        h.id === hotelId
+          ? {
+              ...h,
+              estado_seleccion: newStatus,
+              reservado: newStatus === "elegido",
+            }
+          : newStatus === "elegido" && h.estado_seleccion === "elegido"
+          ? { ...h, estado_seleccion: "sin_nada", reservado: false }
+          : h
+      )
+    )
+    if (cityId) {
+      await tripService.setHotelSelection(cityId, hotelId, newStatus)
+    }
+  }
+
+  const handleToggleHotelHeart = async (
+    hotelId: string,
+    currentStatus: EstadoSeleccionHotel,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation()
+    const nextStatus: EstadoSeleccionHotel =
+      currentStatus === "preferido" ? "sin_nada" : "preferido"
+    await handleHotelSelectionChange(hotelId, nextStatus)
+  }
 
   const handleSaveActivity = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -327,16 +671,17 @@ export function CityDetailView({
               Cómo llegar
             </h2>
             <p className="text-xs text-[#727B74] dark:text-stone-400 mt-0.5">
-              Faro → Lisboa · Viernes, 6 de noviembre
+              Opciones de transporte hacia {cityName} · Compara y selecciona preferido o elegido
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() =>
-              alert("Podrás añadir opciones personalizadas de transporte muy pronto.")
-            }
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#245544] dark:text-emerald-400 hover:underline cursor-pointer self-start sm:self-auto"
+            onClick={() => {
+              setEditingTransport(null)
+              setIsAddTransportOpen(true)
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#245544] text-white hover:bg-[#1b4335] text-xs font-semibold transition-all cursor-pointer shadow-xs self-start sm:self-auto"
           >
             <svg
               width="14"
@@ -353,236 +698,287 @@ export function CityDetailView({
           </button>
         </div>
 
-        {/* Transport Options Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Option 1: Tren */}
-          <div
-            onClick={() => setSelectedTransport("train")}
-            className={`p-4 sm:p-5 rounded-[12px] bg-white dark:bg-stone-900 border transition-all cursor-pointer flex flex-col justify-between gap-4 ${selectedTransport === "train"
-                ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
-                : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-              }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[#245544] dark:text-[#A7F3D0] flex items-center justify-center">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    <rect x="4" y="3" width="16" height="16" rx="2" />
-                    <path d="M4 11h16" />
-                    <path d="M12 3v8" />
-                    <path d="m8 19-2 3" />
-                    <path d="m16 19 2 3" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-[#203D34] dark:text-stone-100">
-                    Tren · Intercidades
-                  </h3>
-                  <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                    Comboios de Portugal · 2.ª clase
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedTransport === "train"
-                      ? "border-[#245544] bg-[#245544]"
-                      : "border-stone-300 dark:border-stone-600"
-                    }`}
-                >
-                  {selectedTransport === "train" && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                  )}
-                </span>
-                <span
-                  className={`text-xs font-semibold ${selectedTransport === "train"
-                      ? "text-[#245544] dark:text-[#A7F3D0]"
-                      : "text-stone-500"
-                    }`}
-                >
-                  {selectedTransport === "train" ? "Preferido" : "Elegir"}
-                </span>
-              </div>
+        {/* Empty State */}
+        {transportsList.length === 0 && (
+          <div className="p-8 rounded-xl border border-dashed border-[#CCD2CA] dark:border-stone-800 bg-[#FBF9F5] dark:bg-stone-900 text-center flex flex-col items-center justify-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[#245544] dark:text-[#A7F3D0] flex items-center justify-center">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="4" y="3" width="16" height="16" rx="2" />
+                <path d="M4 11h16" />
+                <path d="M12 3v8" />
+                <path d="m8 19-2 3" />
+                <path d="m16 19 2 3" />
+              </svg>
             </div>
-
-            {/* Timetable schedule */}
-            <div className="grid grid-cols-3 items-center text-center py-2 bg-[#F9F8F5] dark:bg-stone-800/40 rounded-[8px] px-3">
-              <div className="text-left">
-                <p className="text-base sm:text-lg font-bold text-[#203D34] dark:text-stone-100">
-                  08:22
-                </p>
-                <p className="text-[11px] text-[#4D5B54] dark:text-stone-300">
-                  Faro
-                </p>
-              </div>
-
-              <div className="flex flex-col items-center">
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  3 h 24 min
-                </span>
-                <div className="w-full flex items-center gap-1 my-0.5">
-                  <div className="flex-1 h-px bg-[#CCD2CA] dark:bg-stone-700" />
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#727B74"
-                    strokeWidth="2"
-                  >
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </div>
-                <span className="text-[9px] text-[#245544] dark:text-[#A7F3D0] font-medium">
-                  Directo
-                </span>
-              </div>
-
-              <div className="text-right">
-                <p className="text-base sm:text-lg font-bold text-[#203D34] dark:text-stone-100">
-                  11:46
-                </p>
-                <p className="text-[11px] text-[#4D5B54] dark:text-stone-300">
-                  Lisboa Oriente
-                </p>
-              </div>
+            <div className="max-w-md">
+              <h4 className="font-serif text-lg text-[#203D34] dark:text-stone-100">
+                Aún no habéis añadido transportes para llegar a {cityName}
+              </h4>
+              <p className="text-xs text-[#727B74] dark:text-stone-400 mt-1">
+                Añadid opciones en tren, autobús, avión, ferry o coche para comparar horarios y precios, y marcad vuestra opción preferida o elegida.
+              </p>
             </div>
-
-            {/* Price Footer */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#DFE2DA] dark:border-stone-800">
-              <span className="text-xs text-[#203D34] dark:text-stone-200">
-                <strong>94 €</strong> para los 4 viajeros
-              </span>
-              <span className="text-xs font-semibold text-[#245544] dark:text-[#A7F3D0]">
-                23,50 € / pers.
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingTransport(null)
+                setIsAddTransportOpen(true)
+              }}
+              className="px-4 py-2 rounded-lg bg-[#245544] text-white text-xs font-semibold hover:bg-[#1b4335] transition-colors cursor-pointer shadow-xs"
+            >
+              + Añadir primera opción de transporte
+            </button>
           </div>
+        )}
 
-          {/* Option 2: Bus */}
-          <div
-            onClick={() => setSelectedTransport("bus")}
-            className={`p-4 sm:p-5 rounded-[12px] bg-white dark:bg-stone-900 border transition-all cursor-pointer flex flex-col justify-between gap-4 ${selectedTransport === "bus"
-                ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
-                : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-              }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[#245544] dark:text-[#A7F3D0] flex items-center justify-center">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    <path d="M8 6v6" />
-                    <path d="M16 6v6" />
-                    <path d="M4 6h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
-                    <circle cx="7" cy="18" r="2" />
-                    <circle cx="17" cy="18" r="2" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-[#203D34] dark:text-stone-100">
-                    Bus · Directo
-                  </h3>
-                  <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                    Rede Expressos · Estándar
-                  </p>
-                </div>
-              </div>
+        {/* Dynamic Transport Options Grid */}
+        {transportsList.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {transportsList.map((t) => {
+              const isPreferred = t.estado_seleccion === "preferido"
+              const isChosen = t.estado_seleccion === "elegido"
 
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedTransport === "bus"
-                      ? "border-[#245544] bg-[#245544]"
-                      : "border-stone-300 dark:border-stone-600"
-                    }`}
+              return (
+                <div
+                  key={t.id}
+                  className={`p-4 sm:p-5 rounded-[12px] bg-white dark:bg-stone-900 border transition-all flex flex-col justify-between gap-4 shadow-xs relative ${
+                    isChosen
+                      ? "border-[#245544] ring-1 ring-[#245544] bg-[#F7FAF8] dark:bg-stone-900/90"
+                      : isPreferred
+                      ? "border-rose-400 ring-1 ring-rose-400/80 bg-rose-50/20 dark:bg-stone-900/90"
+                      : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
+                  }`}
                 >
-                  {selectedTransport === "bus" && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                  )}
-                </span>
-                <span
-                  className={`text-xs font-semibold ${selectedTransport === "bus"
-                      ? "text-[#245544] dark:text-[#A7F3D0]"
-                      : "text-stone-500"
-                    }`}
-                >
-                  {selectedTransport === "bus" ? "Preferido" : "Elegir"}
-                </span>
-              </div>
-            </div>
+                  {/* Top Bar: Icon + Service Name + Actions (Elegir, Corazón, Edit, Delete) */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                          isChosen
+                            ? "bg-[#245544] text-white"
+                            : isPreferred
+                            ? "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                            : "bg-[#E8EFEA] dark:bg-stone-800 text-[#245544] dark:text-[#A7F3D0]"
+                        }`}
+                      >
+                        {getTransportIcon(t.tipo, "w-5 h-5")}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-semibold text-[#203D34] dark:text-stone-100 leading-tight truncate">
+                            {t.nombre_linea || `${t.tipo.toUpperCase()} hacia ${t.destino || cityName}`}
+                          </h3>
 
-            {/* Timetable schedule */}
-            <div className="grid grid-cols-3 items-center text-center py-2 bg-[#F9F8F5] dark:bg-stone-800/40 rounded-[8px] px-3">
-              <div className="text-left">
-                <p className="text-base sm:text-lg font-bold text-[#203D34] dark:text-stone-100">
-                  08:00
-                </p>
-                <p className="text-[11px] text-[#4D5B54] dark:text-stone-300">
-                  Faro
-                </p>
-              </div>
+                          {/* Selector de Elegido */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSelectionChange(
+                                t.id,
+                                isChosen ? "sin_nada" : "elegido"
+                              )
+                            }
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-colors cursor-pointer shadow-2xs ${
+                              isChosen
+                                ? "bg-[#245544] text-white ring-1 ring-white/30"
+                                : "bg-[#F0EEE6] text-stone-700 dark:bg-stone-800 dark:text-stone-200 hover:bg-[#E8EFEA] hover:text-[#203D34]"
+                            }`}
+                            title={
+                              isChosen
+                                ? "Transporte elegido para el viaje (haz clic para desmarcar)"
+                                : "Marcar este transporte como elegido"
+                            }
+                          >
+                            {isChosen ? (
+                              <>
+                                <span>✓</span>
+                                <span>Transporte elegido</span>
+                              </>
+                            ) : (
+                              <span>Elegir</span>
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-[#727B74] dark:text-stone-400 truncate mt-0.5">
+                          {t.notas || `${t.tipo.toUpperCase()} · ${t.origen || "Origen"} → ${t.destino || cityName}`}
+                        </p>
+                      </div>
+                    </div>
 
-              <div className="flex flex-col items-center">
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  3 h 30 min
-                </span>
-                <div className="w-full flex items-center gap-1 my-0.5">
-                  <div className="flex-1 h-px bg-[#CCD2CA] dark:bg-stone-700" />
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#727B74"
-                    strokeWidth="2"
-                  >
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
+                    {/* Actions: Heart + Edit + Delete */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {/* Heart Icon for marking Preferred / Favorite */}
+                      <button
+                        type="button"
+                        onClick={(e) =>
+                          handleToggleTransportHeart(t.id, t.estado_seleccion, e)
+                        }
+                        title={
+                          isPreferred
+                            ? "Quitar de preferidos"
+                            : "Marcar como transporte preferido de la familia"
+                        }
+                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer group ${
+                          isPreferred
+                            ? "bg-rose-50 text-rose-500 ring-1 ring-rose-200 dark:bg-rose-950/60 shadow-xs"
+                            : "text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-stone-200 dark:border-stone-700 hover:border-rose-300"
+                        }`}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill={isPreferred ? "#f43f5e" : "none"}
+                          stroke={isPreferred ? "#f43f5e" : "currentColor"}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="transition-transform group-hover:scale-110"
+                        >
+                          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                        </svg>
+                      </button>
+
+                      {/* Edit & Delete Action Buttons */}
+                      <button
+                        type="button"
+                        title="Editar transporte"
+                        onClick={() => {
+                          setEditingTransport(t)
+                          setIsAddTransportOpen(true)
+                        }}
+                        className="p-1 rounded text-stone-400 hover:text-[#203D34] dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        title="Eliminar transporte"
+                        onClick={() => {
+                          if (confirm(`¿Eliminar la opción de transporte "${t.nombre_linea || t.tipo}"?`)) {
+                            handleDeleteTransport(t.id)
+                          }
+                        }}
+                        className="p-1 rounded text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Timetable Schedule Grid */}
+                  <div className="grid grid-cols-3 items-center text-center py-2.5 bg-[#F9F8F5] dark:bg-stone-800/40 rounded-[8px] px-3">
+                    <div className="text-left min-w-0">
+                      <p className="text-base sm:text-lg font-bold text-[#203D34] dark:text-stone-100">
+                        {t.hora_salida || "08:22"}
+                      </p>
+                      <p className="text-[11px] text-[#4D5B54] dark:text-stone-300 truncate">
+                        {t.origen || "Origen"}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col items-center px-1">
+                      <span className="text-[10px] text-[#727B74] dark:text-stone-400">
+                        {t.duracion || "Directo"}
+                      </span>
+                      <div className="w-full flex items-center gap-1 my-0.5">
+                        <div className="flex-1 h-px bg-[#CCD2CA] dark:bg-stone-700" />
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#727B74" strokeWidth="2">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </div>
+                      <span className="text-[9px] text-[#245544] dark:text-[#A7F3D0] font-medium capitalize">
+                        {t.tipo}
+                      </span>
+                    </div>
+
+                    <div className="text-right min-w-0">
+                      <p className="text-base sm:text-lg font-bold text-[#203D34] dark:text-stone-100">
+                        {t.hora_llegada || "11:46"}
+                      </p>
+                      <p className="text-[11px] text-[#4D5B54] dark:text-stone-300 truncate">
+                        {t.destino || cityName}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bottom: Large Total Price + Link */}
+                  <div className="pt-2.5 border-t border-[#DFE2DA] dark:border-stone-800">
+                    {/* Price and Purchase Link Row */}
+                    <div className="flex items-end justify-between gap-3">
+                      <div className="flex flex-col">
+                        <div className="flex items-baseline gap-1.5 flex-wrap">
+                          <span className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#203D34] dark:text-stone-100 leading-none">
+                            {t.costo || 0} €
+                          </span>
+                          <span className="text-[11px] text-[#727B74] dark:text-stone-400 font-normal">
+                            total ({travelersCount === 1 ? "1 viajero" : `todas las ${travelersCount} personas`})
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-[#727B74] dark:text-stone-400 font-normal mt-0.5">
+                          {travelersCount > 0
+                            ? ((t.costo || 0) / travelersCount).toFixed(2)
+                            : "0"}{" "}
+                          € / pers.
+                        </span>
+                      </div>
+
+                      {/* Enlace hacia donde comprarlo */}
+                      {t.enlace_compra ? (
+                        <a
+                          href={t.enlace_compra}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#245544] hover:bg-[#1b4335] text-white shadow-xs transition-colors shrink-0 group"
+                          title="Ir a comprar los billetes en la web oficial"
+                        >
+                          <span>Comprar billetes</span>
+                          <svg
+                            className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                            <polyline points="15 3 21 3 21 9" />
+                            <line x1="10" y1="14" x2="21" y2="3" />
+                          </svg>
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTransport(t)
+                            setIsAddTransportOpen(true)
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#245544] dark:text-[#A7F3D0] hover:underline cursor-pointer shrink-0 pb-0.5"
+                          title="Añadir enlace de compra"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                          </svg>
+                          <span>Añadir enlace</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <span className="text-[9px] text-[#245544] dark:text-[#A7F3D0] font-medium">
-                  Directo
-                </span>
-              </div>
-
-              <div className="text-right">
-                <p className="text-base sm:text-lg font-bold text-[#203D34] dark:text-stone-100">
-                  11:30
-                </p>
-                <p className="text-[11px] text-[#4D5B54] dark:text-stone-300">
-                  Lisboa Sete Rios
-                </p>
-              </div>
-            </div>
-
-            {/* Price Footer */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#DFE2DA] dark:border-stone-800">
-              <span className="text-xs text-[#203D34] dark:text-stone-200">
-                <strong>48 €</strong> para los 4 viajeros
-              </span>
-              <span className="text-xs font-semibold text-[#245544] dark:text-[#A7F3D0]">
-                12 € / pers.
-              </span>
-            </div>
+              )
+            })}
           </div>
-        </div>
+        )}
 
         <p className="text-[11px] text-[#727B74] dark:text-stone-400 italic">
-          ℹ Horarios y precios de ejemplo, orientativos y sin consulta en directo.
-          Hora local de Portugal. Preferido no significa reservado.
+          ℹ Horarios y precios orientativos. Podéis marcar cada transporte como preferido para acordarlo en familia, o elegido para el plan final.
         </p>
       </section>
 
@@ -597,15 +993,16 @@ export function CityDetailView({
               Dónde dormir
             </h2>
             <p className="text-xs text-[#727B74] dark:text-stone-400 mt-0.5">
-              Entrada: 6 nov · Salida: 9 nov · 3 noches
+              {cityNights} {cityNights === 1 ? "noche" : "noches"} en {cityName} · {hotelsList.length} {hotelsList.length === 1 ? "opción guardada" : "opciones guardadas"}
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() =>
-              alert("Podrás añadir más opciones de hoteles próximamente.")
-            }
+            onClick={() => {
+              setEditingHotel(null)
+              setIsAddHotelOpen(true)
+            }}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#245544] dark:text-emerald-400 hover:underline cursor-pointer self-start sm:self-auto"
           >
             <svg
@@ -623,210 +1020,273 @@ export function CityDetailView({
           </button>
         </div>
 
-        {/* Hotels 3-Column Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Hotel 1: Lisboa Pessoa Hotel (Selected) */}
-          <div
-            onClick={() => setSelectedHotel("pessoa")}
-            className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all cursor-pointer ${selectedHotel === "pessoa"
-                ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
-                : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-              }`}
-          >
-            <div className="relative h-44 w-full bg-stone-100 dark:bg-stone-800">
-              <img
-                src="/images/hotel-pessoa.png"
-                alt="Lisboa Pessoa Hotel"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-2.5 left-2.5">
-                <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs ${selectedHotel === "pessoa"
-                      ? "bg-[#245544] text-white"
-                      : "bg-white/90 text-stone-700"
-                    }`}
-                >
-                  {selectedHotel === "pessoa"
-                    ? "✓ Alojamiento seleccionado"
-                    : "Seleccionar"}
-                </span>
-              </div>
+        {/* Empty state when no hotels */}
+        {hotelsList.length === 0 && (
+          <div className="p-8 text-center rounded-[12px] border border-dashed border-[#CCD2CA] dark:border-stone-800 bg-[#F9F8F5] dark:bg-stone-900/50 flex flex-col items-center justify-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#E8EFEA] dark:bg-stone-800 flex items-center justify-center text-[#245544] dark:text-[#A7F3D0]">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 10V20C3 20.5523 3.44772 21 4 21H20C20.5523 21 21 20.5523 21 20V10" />
+                <path d="M12 3L2 10H22L12 3Z" />
+              </svg>
             </div>
-
-            <div className="p-4 flex flex-col justify-between flex-1 gap-3">
-              <div>
-                <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100">
-                  Lisboa Pessoa Hotel
-                </h3>
-                <p className="text-xs text-[#4D5B54] dark:text-stone-300">
-                  Chiado · A 6 min de Rossio
-                </p>
-                <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                  4 estrellas · Piscina interior
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                <span className="px-2 py-0.5 rounded-[4px] bg-[#F5F2E9] dark:bg-stone-800 text-[10px] text-[#4D5B54] dark:text-stone-300">
-                  2 hab. dobles
-                </span>
-                <span className="px-2 py-0.5 rounded-[4px] bg-[#F5F2E9] dark:bg-stone-800 text-[10px] text-[#4D5B54] dark:text-stone-300">
-                  Desayuno incluido
-                </span>
-              </div>
-
-              <div className="pt-2 border-t border-[#DFE2DA] dark:border-stone-800 flex items-end justify-between">
-                <div>
-                  <span className="text-xs text-[#727B74] dark:text-stone-400 block">
-                    Total 3 noches
-                  </span>
-                  <span className="text-base font-bold text-[#203D34] dark:text-stone-100">
-                    810 €
-                  </span>
-                </div>
-                <span className="text-xs font-semibold text-[#245544] dark:text-[#A7F3D0]">
-                  270 € / noche
-                </span>
-              </div>
+            <div>
+              <p className="text-sm font-semibold text-[#203D34] dark:text-stone-200">
+                Aún no habéis guardado alojamientos en {cityName}
+              </p>
+              <p className="text-xs text-[#727B74] dark:text-stone-400 mt-1 max-w-sm">
+                Añadid hoteles o apartamentos, marcad los preferidos con el corazón y comparad antes de reservar.
+              </p>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingHotel(null)
+                setIsAddHotelOpen(true)
+              }}
+              className="px-4 py-2 text-xs font-semibold rounded-lg bg-[#245544] text-white hover:bg-[#1b4335] shadow-xs transition-colors cursor-pointer"
+            >
+              + Añadir el primer alojamiento
+            </button>
           </div>
+        )}
 
-          {/* Hotel 2: My Story Hotel Rossio */}
-          <div
-            onClick={() => setSelectedHotel("mystory")}
-            className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all cursor-pointer ${selectedHotel === "mystory"
-                ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
-                : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-              }`}
-          >
-            <div className="relative h-44 w-full bg-stone-100 dark:bg-stone-800">
-              <img
-                src="/images/hotel-mystory.png"
-                alt="My Story Hotel Rossio"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-2.5 left-2.5">
-                <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs ${selectedHotel === "mystory"
-                      ? "bg-[#245544] text-white"
-                      : "bg-white/90 text-stone-700"
-                    }`}
+        {/* Hotels Dynamic Grid */}
+        {hotelsList.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {hotelsList.map((hotel) => {
+              const isChosen = hotel.estado_seleccion === "elegido"
+              const isPreferred = hotel.estado_seleccion === "preferido"
+
+              const totalStayNights = hotel.noches || cityNights
+              const costPerNight =
+                totalStayNights > 0
+                  ? ((hotel.costo || 0) / totalStayNights).toFixed(0)
+                  : "0"
+              const costPerPerson =
+                travelersCount > 0
+                  ? ((hotel.costo || 0) / travelersCount).toFixed(0)
+                  : "0"
+
+              return (
+                <div
+                  key={hotel.id}
+                  className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all shadow-xs relative ${
+                    isChosen
+                      ? "border-[#245544] ring-1 ring-[#245544] bg-[#F7FAF8] dark:bg-stone-900/95"
+                      : isPreferred
+                      ? "border-rose-400 ring-1 ring-rose-400/80 bg-rose-50/20 dark:bg-stone-900/95"
+                      : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
+                  }`}
                 >
-                  {selectedHotel === "mystory"
-                    ? "✓ Alojamiento seleccionado"
-                    : "Seleccionar"}
-                </span>
-              </div>
-            </div>
+                  {/* Photo & Overlays */}
+                  <div className="relative h-44 w-full bg-stone-100 dark:bg-stone-800">
+                    <img
+                      src={hotel.foto || DEFAULT_HOTEL_IMAGE}
+                      alt={hotel.nombre}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        ;(e.target as HTMLImageElement).src = DEFAULT_HOTEL_IMAGE
+                      }}
+                    />
 
-            <div className="p-4 flex flex-col justify-between flex-1 gap-3">
-              <div>
-                <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100">
-                  My Story Hotel Rossio
-                </h3>
-                <p className="text-xs text-[#4D5B54] dark:text-stone-300">
-                  Baixa · Frente a la plaza de Rossio
-                </p>
-                <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                  3 estrellas · Ubicación céntrica
-                </p>
-              </div>
+                    {/* Top Left: Selector de Elegido */}
+                    <div className="absolute top-2.5 left-2.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleHotelSelectionChange(
+                            hotel.id,
+                            isChosen ? "sin_nada" : "elegido"
+                          )
+                        }
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs transition-colors cursor-pointer shadow-xs ${
+                          isChosen
+                            ? "bg-[#245544] text-white ring-1 ring-white/30"
+                            : "bg-white/90 text-stone-700 dark:bg-stone-900/90 dark:text-stone-200 hover:bg-white hover:text-[#203D34]"
+                        }`}
+                        title={
+                          isChosen
+                            ? "Alojamiento elegido para el viaje (haz clic para desmarcar)"
+                            : "Marcar este alojamiento como elegido"
+                        }
+                      >
+                        {isChosen ? (
+                          <>
+                            <span>✓</span>
+                            <span>Alojamiento elegido</span>
+                          </>
+                        ) : (
+                          <span>Elegir</span>
+                        )}
+                      </button>
+                    </div>
 
-              <div className="flex flex-wrap gap-1.5">
-                <span className="px-2 py-0.5 rounded-[4px] bg-[#F5F2E9] dark:bg-stone-800 text-[10px] text-[#4D5B54] dark:text-stone-300">
-                  2 hab. dobles
-                </span>
-                <span className="px-2 py-0.5 rounded-[4px] bg-[#F5F2E9] dark:bg-stone-800 text-[10px] text-[#4D5B54] dark:text-stone-300">
-                  Recepción 24 h
-                </span>
-              </div>
+                    {/* Top Right: Heart Icon for marking Preferred / Favorite */}
+                    <button
+                      type="button"
+                      onClick={(e) =>
+                        handleToggleHotelHeart(hotel.id, hotel.estado_seleccion, e)
+                      }
+                      title={
+                        isPreferred
+                          ? "Quitar de preferidos"
+                          : "Marcar como preferido de la familia"
+                      }
+                      className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-sm group ${
+                        isPreferred
+                          ? "bg-white text-rose-500 scale-105 shadow-md ring-1 ring-rose-200"
+                          : "bg-black/35 hover:bg-black/55 text-white/90 hover:text-white"
+                      }`}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill={isPreferred ? "#f43f5e" : "none"}
+                        stroke={isPreferred ? "#f43f5e" : "#ffffff"}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="transition-transform group-hover:scale-110"
+                      >
+                        <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                      </svg>
+                    </button>
+                  </div>
 
-              <div className="pt-2 border-t border-[#DFE2DA] dark:border-stone-800 flex items-end justify-between">
-                <div>
-                  <span className="text-xs text-[#727B74] dark:text-stone-400 block">
-                    Total 3 noches
-                  </span>
-                  <span className="text-base font-bold text-[#203D34] dark:text-stone-100">
-                    660 €
-                  </span>
+                  {/* Card Content */}
+                  <div className="p-4 flex flex-col justify-between flex-1 gap-3">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100 leading-snug">
+                          {hotel.nombre}
+                        </h3>
+
+                        {/* Edit & Delete Action Buttons */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            title="Editar alojamiento"
+                            onClick={() => {
+                              setEditingHotel(hotel)
+                              setIsAddHotelOpen(true)
+                            }}
+                            className="p-1 rounded text-stone-400 hover:text-[#203D34] dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            title="Eliminar alojamiento"
+                            onClick={() => {
+                              if (confirm(`¿Eliminar el alojamiento "${hotel.nombre}"?`)) {
+                                handleDeleteHotel(hotel.id)
+                              }
+                            }}
+                            className="p-1 rounded text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 6h18" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-[#4D5B54] dark:text-stone-300 mt-0.5">
+                        {hotel.direccion || `${cityName}`}
+                      </p>
+                      <p className="text-[11px] text-[#727B74] dark:text-stone-400">
+                        {hotel.estrellas || "Alojamiento en familia"}
+                      </p>
+                    </div>
+
+                    {/* Badges / Details */}
+                    {hotel.detalles && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {hotel.detalles.split("·").map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 rounded-[4px] bg-[#F5F2E9] dark:bg-stone-800 text-[10px] text-[#4D5B54] dark:text-stone-300"
+                          >
+                            {tag.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Bottom: Large Total Price + Link */}
+                    <div className="pt-2.5 border-t border-[#DFE2DA] dark:border-stone-800">
+                      {/* Price & Booking Link Row */}
+                      <div className="flex items-end justify-between gap-2">
+                        <div className="flex flex-col">
+                          <div className="flex items-baseline gap-1.5 flex-wrap">
+                            <span className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-[#203D34] dark:text-stone-100 leading-none">
+                              {hotel.costo || 0} €
+                            </span>
+                            <span className="text-[11px] text-[#727B74] dark:text-stone-400 font-normal">
+                              total ({totalStayNights} {totalStayNights === 1 ? "noche" : "noches"} · {travelersCount} pers.)
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-[#727B74] dark:text-stone-400 font-normal mt-0.5">
+                            {costPerNight} € / noche · {costPerPerson} € / pers.
+                          </span>
+                        </div>
+
+                        {/* Enlace hacia donde comprarlo / reservarlo */}
+                        {hotel.enlace_reserva ? (
+                          <a
+                            href={hotel.enlace_reserva}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#245544] hover:bg-[#1b4335] text-white shadow-xs transition-colors shrink-0 group"
+                            title="Ir a reservar en la web oficial"
+                          >
+                            <span>Reservar</span>
+                            <svg
+                              className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                              <polyline points="15 3 21 3 21 9" />
+                              <line x1="10" y1="14" x2="21" y2="3" />
+                            </svg>
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingHotel(hotel)
+                              setIsAddHotelOpen(true)
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#245544] dark:text-[#A7F3D0] hover:underline cursor-pointer shrink-0 pb-0.5"
+                            title="Añadir enlace de reserva"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                            </svg>
+                            <span>Añadir enlace</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-xs font-semibold text-[#245544] dark:text-[#A7F3D0]">
-                  220 € / noche
-                </span>
-              </div>
-            </div>
+              )
+            })}
           </div>
-
-          {/* Hotel 3: JAM Lisbon */}
-          <div
-            onClick={() => setSelectedHotel("jam")}
-            className={`flex flex-col justify-between rounded-[12px] bg-white dark:bg-stone-900 overflow-hidden border transition-all cursor-pointer ${selectedHotel === "jam"
-                ? "border-[#245544] ring-1 ring-[#245544] shadow-sm"
-                : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
-              }`}
-          >
-            <div className="relative h-44 w-full bg-stone-100 dark:bg-stone-800">
-              <img
-                src="/images/hotel-jam.png"
-                alt="JAM Lisbon"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-2.5 left-2.5">
-                <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold backdrop-blur-xs ${selectedHotel === "jam"
-                      ? "bg-[#245544] text-white"
-                      : "bg-white/90 text-stone-700"
-                    }`}
-                >
-                  {selectedHotel === "jam"
-                    ? "✓ Alojamiento seleccionado"
-                    : "Seleccionar"}
-                </span>
-              </div>
-            </div>
-
-            <div className="p-4 flex flex-col justify-between flex-1 gap-3">
-              <div>
-                <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100">
-                  JAM Lisbon
-                </h3>
-                <p className="text-xs text-[#4D5B54] dark:text-stone-300">
-                  Santos · Junto al Museo de Arte Antiguo
-                </p>
-                <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                  3 estrellas · Terraza y piscina
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                <span className="px-2 py-0.5 rounded-[4px] bg-[#F5F2E9] dark:bg-stone-800 text-[10px] text-[#4D5B54] dark:text-stone-300">
-                  Habitaciones familiares
-                </span>
-                <span className="px-2 py-0.5 rounded-[4px] bg-[#F5F2E9] dark:bg-stone-800 text-[10px] text-[#4D5B54] dark:text-stone-300">
-                  Parking de pago
-                </span>
-              </div>
-
-              <div className="pt-2 border-t border-[#DFE2DA] dark:border-stone-800 flex items-end justify-between">
-                <div>
-                  <span className="text-xs text-[#727B74] dark:text-stone-400 block">
-                    Total 3 noches
-                  </span>
-                  <span className="text-base font-bold text-[#203D34] dark:text-stone-100">
-                    570 €
-                  </span>
-                </div>
-                <span className="text-xs font-semibold text-[#245544] dark:text-[#A7F3D0]">
-                  190 € / noche
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
 
         <p className="text-[11px] text-[#727B74] dark:text-stone-400 italic">
-          Precios, servicios y condiciones de ejemplo; no verificados en directo.
-          Tasas turísticas no incluidas. Fotografías de inspiración.
+          ℹ Precios y condiciones orientativos. Podéis marcar alojamientos como preferidos con el corazón ❤️ en la esquina superior derecha, o seleccionar el elegido para el viaje.
         </p>
       </section>
 
@@ -1336,6 +1796,33 @@ export function CityDetailView({
           </svg>
         </button>
       </div>
+
+      {/* Modal para añadir o editar transporte */}
+      <CreateTransportModal
+        isOpen={isAddTransportOpen}
+        cityName={cityName}
+        travelersCount={travelersCount}
+        initialData={editingTransport}
+        onClose={() => {
+          setIsAddTransportOpen(false)
+          setEditingTransport(null)
+        }}
+        onSave={handleSaveTransport}
+      />
+
+      {/* Modal para añadir o editar alojamiento / hotel */}
+      <CreateHotelModal
+        isOpen={isAddHotelOpen}
+        cityName={cityName}
+        cityNights={cityNights}
+        travelersCount={travelersCount}
+        initialData={editingHotel}
+        onClose={() => {
+          setIsAddHotelOpen(false)
+          setEditingHotel(null)
+        }}
+        onSave={handleSaveHotel}
+      />
     </div>
   )
 }
