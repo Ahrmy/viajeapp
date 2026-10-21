@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { tripService, DEFAULT_DESTINATION_IMAGE, DEFAULT_HOTEL_IMAGE } from "@/lib/tripService"
 import type { Destination } from "./DestinationsSlider"
@@ -126,17 +126,220 @@ function getTransportIcon(tipo: TipoTransporte, className = "w-4 h-4") {
   }
 }
 
+const WEEKDAY_NAMES = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"]
+const WEEKDAY_FULL = [
+  "Domingo",
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+]
+const MONTH_SHORT = [
+  "ENE",
+  "FEB",
+  "MAR",
+  "ABR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AGO",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DIC",
+]
+const MONTH_FULL = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+]
+
+function getDayDateInfo(dayIndex: number, startDateStr = "2026-11-06") {
+  try {
+    const parts = startDateStr.split("-").map(Number)
+    const d = new Date(parts[0], parts[1] - 1, parts[2])
+    d.setDate(d.getDate() + dayIndex)
+    const dayOfMonth = String(d.getDate()).padStart(2, "0")
+    const weekdayShort = WEEKDAY_NAMES[d.getDay()]
+    const weekdayFull = WEEKDAY_FULL[d.getDay()]
+    const monthShort = MONTH_SHORT[d.getMonth()]
+    const monthFull = MONTH_FULL[d.getMonth()]
+    return {
+      weekdayShort,
+      badge: `${dayOfMonth} ${monthShort}`,
+      dateFull: `${weekdayFull}, ${d.getDate()} de ${monthFull}`,
+    }
+  } catch {
+    return {
+      weekdayShort: "DÍA",
+      badge: `DÍA ${dayIndex + 1}`,
+      dateFull: `Día ${dayIndex + 1}`,
+    }
+  }
+}
+
+function getDefaultDayData(dayNum: number, cityName: string) {
+  switch (dayNum) {
+    case 1:
+      return {
+        subtitle: `Olá, ${cityName}. La ciudad nos espera.`,
+        activities: [
+          {
+            time: "11:46",
+            title: `Llegada a ${cityName} y traslado al centro`,
+            location: "Estação do Oriente · Av. Dom João II · 45 min",
+          },
+          {
+            time: "12:45",
+            title: "Primera comida en el Mercado da Ribeira",
+            location: "Av. 24 de Julho, 49 · 1 h",
+          },
+          {
+            time: "14:00",
+            title: "Dejar las maletas y hacer el check-in",
+            location: "Lisboa Pessoa Hotel · Rua da Oliveira ao Carmo, 8 · 1 h",
+          },
+          {
+            time: "16:00",
+            title: "Paseo por Baixa y la Praça do Comércio",
+            location: "Praça do Comércio · 1 h 30 min · A pie, sin prisas",
+          },
+          {
+            time: "19:00",
+            title: "Cena en familia por Chiado",
+            location: "Largo do Chiado · 1 h 30 min",
+          },
+        ],
+      }
+    case 2:
+      return {
+        subtitle: "Belém, entre descubrimientos y pasteles.",
+        activities: [
+          {
+            time: "09:00",
+            title: "Desayuno y tranvía hacia Belém",
+            location: "Praça da Figueira · Tranvía 15E · 1 h",
+          },
+          {
+            time: "10:00",
+            title: "Visitar el Monasterio de los Jerónimos",
+            location: "Praça do Império, 1400-206 · 1 h 30 min",
+          },
+          {
+            time: "12:00",
+            title: "Una parada dulce en Pastéis de Belém",
+            location: "Rua de Belém, 84–92 · 45 min",
+          },
+          {
+            time: "14:00",
+            title: "Jardines, río y Torre de Belém por fuera",
+            location: "Av. Brasília · 2 h · Paseo y tiempo libre",
+          },
+        ],
+      }
+    case 3:
+      return {
+        subtitle: "Del fondo del mar a los tejados de Alfama.",
+        activities: [
+          {
+            time: "09:30",
+            title: "Descubrir el Oceanário de Lisboa",
+            location: "Esplanada Dom Carlos I · Parque das Nações · 2 h 30 min",
+          },
+          {
+            time: "12:30",
+            title: "Comida junto al río y vuelta al centro",
+            location: "Alameda dos Oceanos · 1 h 30 min",
+          },
+          {
+            time: "15:00",
+            title: "Perderse por las calles de Alfama",
+            location: "Largo de São Miguel · 1 h 30 min · Paseo a pie",
+          },
+          {
+            time: "16:30",
+            title: "La luz de la tarde en Santa Luzia",
+            location: "Miradouro de Santa Luzia · Largo de Santa Luzia · 45 min",
+          },
+        ],
+      }
+    case 4:
+      return {
+        subtitle: `Un último café. Próxima parada.`,
+        activities: [
+          {
+            time: "08:30",
+            title: `Desayunar y despedirse de ${cityName}`,
+            location: "Lisboa Pessoa Hotel · Rua da Oliveira ao Carmo, 8 · 45 min",
+          },
+          {
+            time: "09:30",
+            title: "Check-out y paseo hasta la estación",
+            location: "Hotel → Estación central · 45 min",
+          },
+          {
+            time: "10:41",
+            title: "Tren a la siguiente parada · Continuamos el viaje",
+            location: "Estación de trenes · 40 min · Continuación del viaje",
+          },
+        ],
+      }
+    default:
+      return {
+        subtitle: `Tiempo libre para descubrir más de ${cityName}.`,
+        activities: [
+          {
+            time: "10:00",
+            title: `Paseo y exploración por barrios locales`,
+            location: `${cityName} · Tiempo sin prisas · 2 h`,
+          },
+          {
+            time: "13:30",
+            title: "Almuerzo y degustación gastronómica",
+            location: "Taberna tradicional · 1 h 30 min",
+          },
+          {
+            time: "17:00",
+            title: "Atardecer y vistas panorámicas",
+            location: "Mirador de la ciudad · 1 h",
+          },
+        ],
+      }
+  }
+}
+
 interface CityDetailViewProps {
   cityId?: string
   cityName?: string
   cityData?: Destination
   tripName?: string
+  startDate?: string
   travelersCount?: number
   isAdmin?: boolean
   onBack: () => void
   onBackToOverview?: () => void
   onSelectCity?: (cityId: string) => void
   onEditCity?: (city: Destination) => void
+  onUpdateDays?: (cityId: string, days: number) => Promise<void> | void
+}
+
+export interface ActivityItem {
+  id?: string
+  day: number
+  time: string
+  title: string
+  location: string
 }
 
 export function CityDetailView({
@@ -144,15 +347,35 @@ export function CityDetailView({
   cityName = "Lisboa",
   cityData,
   tripName = "Portugal en familia",
+  startDate = "2026-11-06",
   travelersCount = 4,
   isAdmin = true,
   onBack,
   onBackToOverview,
   onSelectCity,
   onEditCity,
+  onUpdateDays,
 }: CityDetailViewProps) {
   const cityImage = cityData?.image || DEFAULT_DESTINATION_IMAGE
-  const cityDays = cityData?.nights || 2
+
+  // Dynamic days count directly tied to itinerary / database
+  const [daysCount, setDaysCount] = useState<number>(() =>
+    Math.max(1, cityData?.nights ?? 1)
+  )
+
+  useEffect(() => {
+    if (cityData?.nights !== undefined) {
+      setDaysCount(Math.max(1, cityData.nights))
+    } else if (cityId) {
+      tripService.getCity(cityId).then((c) => {
+        if (c?.dias) {
+          setDaysCount(Math.max(1, c.dias))
+        }
+      }).catch(() => {})
+    }
+  }, [cityId, cityData?.nights])
+
+  const cityDays = daysCount
   const cityNights = Math.max(1, cityDays - 1)
   const cityTitle =
     cityData?.title ||
@@ -173,6 +396,9 @@ export function CityDetailView({
 
   // Draft activity form state
   const [isActivityFormOpen, setIsActivityFormOpen] = useState(true)
+  const [activityTargetDay, setActivityTargetDay] = useState<number>(() =>
+    Math.min(2, Math.max(1, cityData?.nights || 3))
+  )
   const [newActivityTime, setNewActivityTime] = useState("17:00")
   const [newActivityTitle, setNewActivityTitle] = useState(
     "Atardecer junto al Tajo"
@@ -181,10 +407,16 @@ export function CityDetailView({
     "Doca de Santo Amaro, Alcântara · 1 h"
   )
 
-  // Extra activities added dynamically
-  const [day2ExtraActivities, setDay2ExtraActivities] = useState<
-    Array<{ time: string; title: string; location: string }>
-  >([])
+  // Extra activities added dynamically organized by day
+  const [extraActivities, setExtraActivities] = useState<
+    Record<number, ActivityItem[]>
+  >({})
+
+  useEffect(() => {
+    if (activityTargetDay > daysCount) {
+      setActivityTargetDay(Math.max(1, daysCount))
+    }
+  }, [daysCount, activityTargetDay])
 
   // Cargar actividades, hoteles y transportes de Supabase para esta ciudad si existen
   useEffect(() => {
@@ -193,14 +425,28 @@ export function CityDetailView({
     tripService.getCityDetails(cityId).then((details) => {
       if (!isMounted) return
       if (details.activities && details.activities.length > 0) {
-        const extra = details.activities.map((a, idx) => ({
-          time: a.fecha ? `${10 + (idx % 8)}:00` : "17:00",
-          title: a.titulo,
-          location: `${cityName} · Plan en familia`,
-        }))
-        setDay2ExtraActivities(extra)
+        const byDay: Record<number, ActivityItem[]> = {}
+        details.activities.forEach((a, idx) => {
+          let day = 1
+          if (a.fecha?.startsWith("dia-")) {
+            const parsed = parseInt(a.fecha.replace("dia-", ""), 10)
+            if (parsed >= 1) day = parsed
+          } else if (a.fecha && !isNaN(Number(a.fecha))) {
+            const parsed = Number(a.fecha)
+            if (parsed >= 1) day = parsed
+          }
+          if (!byDay[day]) byDay[day] = []
+          byDay[day].push({
+            id: a.id,
+            day,
+            time: a.fecha && !a.fecha.startsWith("dia-") ? `${10 + (idx % 8)}:00` : "17:00",
+            title: a.titulo,
+            location: `${cityName} · Plan personalizado`,
+          })
+        })
+        setExtraActivities(byDay)
       } else {
-        setDay2ExtraActivities([])
+        setExtraActivities({})
       }
 
       if (details.transports && details.transports.length > 0) {
@@ -427,31 +673,255 @@ export function CityDetailView({
     await handleHotelSelectionChange(hotelId, nextStatus)
   }
 
+  const handleOpenCreateActivity = (day?: number) => {
+    if (day && day >= 1 && day <= daysCount) {
+      setActivityTargetDay(day)
+    } else if (activityTargetDay > daysCount) {
+      setActivityTargetDay(daysCount)
+    }
+    setIsActivityFormOpen(true)
+    setTimeout(() => {
+      const el = document.getElementById("activity-form-container")
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
+      const titleInput = document.getElementById(
+        "activity-title-input"
+      ) as HTMLInputElement | null
+      if (titleInput) {
+        titleInput.focus()
+      }
+    }, 100)
+  }
+
+  const handleAddDay = async () => {
+    const nextDays = daysCount + 1
+    setDaysCount(nextDays)
+    if (cityId && onUpdateDays) {
+      await onUpdateDays(cityId, nextDays)
+    } else if (cityId) {
+      await tripService.updateCity(cityId, { dias: nextDays })
+    }
+    setTimeout(() => {
+      const newDayEl = document.getElementById(`timeline-day-${nextDays}`)
+      if (newDayEl) {
+        newDayEl.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
+    }, 120)
+  }
+
   const handleSaveActivity = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newActivityTitle.trim()) return
     const title = newActivityTitle.trim()
     const loc = newActivityLocation.trim() || `${cityName} · 1 h`
+    const time = newActivityTime.trim() || "17:00"
+    const targetDay = activityTargetDay
 
-    setDay2ExtraActivities((prev) => [
-      ...prev,
-      {
-        time: newActivityTime,
-        title,
-        location: loc,
-      },
-    ])
+    let newId = `act-${Date.now()}`
 
     if (cityId) {
-      await tripService.createActivity({
+      const res = await tripService.createActivity({
         ciudad_id: cityId,
         titulo: title,
+        fecha: `dia-${targetDay}`,
       })
+      if (res.data?.id) {
+        newId = res.data.id
+      }
     }
+
+    setExtraActivities((prev) => ({
+      ...prev,
+      [targetDay]: [
+        ...(prev[targetDay] || []),
+        {
+          id: newId,
+          day: targetDay,
+          time,
+          title,
+          location: loc,
+        },
+      ],
+    }))
 
     setNewActivityTitle("")
     setNewActivityLocation("")
     setIsActivityFormOpen(false)
+  }
+
+  const handleDeleteActivity = async (
+    day: number,
+    actId?: string,
+    index?: number
+  ) => {
+    if (actId) {
+      await tripService.deleteActivity(actId)
+    }
+    setExtraActivities((prev) => ({
+      ...prev,
+      [day]: (prev[day] || []).filter((item, idx) =>
+        actId ? item.id !== actId : idx !== index
+      ),
+    }))
+  }
+
+  const totalActivitiesCount = useMemo(() => {
+    let count = 0
+    for (let d = 1; d <= daysCount; d++) {
+      count += getDefaultDayData(d, cityName).activities.length
+      count += (extraActivities[d] || []).length
+    }
+    return count
+  }, [daysCount, cityName, extraActivities])
+
+  const renderExtraActivities = (day: number) => {
+    const list = extraActivities[day] || []
+    if (list.length === 0) return null
+
+    return list.map((act, index) => (
+      <div
+        key={act.id || index}
+        className="py-2.5 flex items-start justify-between gap-4 group hover:bg-[#FAF9F5] dark:hover:bg-stone-800/40 px-2 rounded-lg -mx-2 transition-colors"
+      >
+        <div className="flex items-start gap-4">
+          <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
+            {act.time}
+          </span>
+          <div>
+            <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
+              {act.title}
+            </h4>
+            <p className="text-[11px] text-[#727B74] dark:text-stone-400">
+              {act.location}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => handleDeleteActivity(day, act.id, index)}
+          title="Eliminar actividad"
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-[#727B74] hover:text-red-600 dark:hover:text-red-400 cursor-pointer rounded"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+        </button>
+      </div>
+    ))
+  }
+
+  const renderActivityForm = (dayNum: number) => {
+    if (!isActivityFormOpen || activityTargetDay !== dayNum) return null
+    return (
+      <form
+        id="activity-form-container"
+        onSubmit={handleSaveActivity}
+        className="p-4 rounded-[10px] bg-[#FAF9F5] dark:bg-stone-800/60 border border-[#CCD2CA] dark:border-stone-700 space-y-3.5 mt-3 animate-in fade-in duration-200"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100">
+              Nueva actividad
+            </span>
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#E8EFEA] dark:bg-stone-700 text-[#245544] dark:text-[#A7F3D0]">
+              Día {dayNum}
+            </span>
+          </div>
+          <span className="text-[9px] font-semibold tracking-wider text-[#727B74] uppercase">
+            BORRADOR · SIN GUARDAR
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <div className="sm:col-span-3 space-y-1">
+            <label className="text-[11px] font-medium text-[#4D5B54] dark:text-stone-300">
+              Día
+            </label>
+            <select
+              value={activityTargetDay}
+              onChange={(e) => setActivityTargetDay(Number(e.target.value))}
+              className="w-full h-9 px-2.5 rounded-[6px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-xs font-medium text-[#203D34] dark:text-stone-200"
+            >
+              {Array.from({ length: daysCount }, (_, i) => i + 1).map((d) => {
+                const info = getDayDateInfo(d - 1, startDate)
+                return (
+                  <option key={d} value={d}>
+                    Día {d} · {info.weekdayShort} {info.badge.split(" ")[0]}
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+
+          <div className="sm:col-span-3 space-y-1">
+            <label className="text-[11px] font-medium text-[#4D5B54] dark:text-stone-300">
+              Hora
+            </label>
+            <input
+              type="text"
+              value={newActivityTime}
+              onChange={(e) => setNewActivityTime(e.target.value)}
+              placeholder="17:00"
+              className="w-full h-9 px-3 rounded-[6px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-xs text-[#203D34] dark:text-stone-200"
+            />
+          </div>
+
+          <div className="sm:col-span-6 space-y-1">
+            <label className="text-[11px] font-medium text-[#4D5B54] dark:text-stone-300">
+              Título
+            </label>
+            <input
+              id="activity-title-input"
+              type="text"
+              required
+              value={newActivityTitle}
+              onChange={(e) => setNewActivityTitle(e.target.value)}
+              placeholder="Ej. Atardecer junto al Tajo"
+              className="w-full h-9 px-3 rounded-[6px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-xs text-[#203D34] dark:text-stone-200"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[11px] font-medium text-[#4D5B54] dark:text-stone-300">
+            Dirección y duración
+          </label>
+          <input
+            type="text"
+            value={newActivityLocation}
+            onChange={(e) => setNewActivityLocation(e.target.value)}
+            placeholder="Ej. Doca de Santo Amaro, Alcântara · 1 h"
+            className="w-full h-9 px-3 rounded-[6px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-xs text-[#203D34] dark:text-stone-200"
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsActivityFormOpen(false)}
+            className="h-8 px-3 text-xs rounded-[6px] cursor-pointer"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            className="h-8 px-3 text-xs bg-[#245544] hover:bg-[#1b4335] text-white rounded-[6px] cursor-pointer font-medium"
+          >
+            Guardar actividad
+          </Button>
+        </div>
+      </form>
+    )
   }
 
   return (
@@ -1290,479 +1760,131 @@ export function CityDetailView({
         </p>
       </section>
 
-      {/* SECTION 3: AGENDA DE LISBOA (LÍNEA DE TIEMPO) */}
+      {/* SECTION 3: AGENDA DE LA CIUDAD (LÍNEA DE TIEMPO) */}
       <section className="flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 border-b border-[#E6E2D8] dark:border-stone-800 pb-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-[#E6E2D8] dark:border-stone-800 pb-2.5">
           <div>
             <span className="text-[10px] font-semibold tracking-wider text-[#245544] dark:text-[#A7F3D0] uppercase block">
               POCO A POCO, DÍA A DÍA
             </span>
             <h2 className="font-serif text-xl sm:text-2xl font-normal text-[#203D34] dark:text-stone-100">
-              Vuestros días en Lisboa
+              Vuestros días en {cityName}
             </h2>
             <p className="text-xs text-[#727B74] dark:text-stone-400 mt-0.5">
-              4 días · 16 actividades planificadas
+              {daysCount} {daysCount === 1 ? "día" : "días"} · {totalActivitiesCount} actividades planificadas
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              alert("Podrás añadir un nuevo día completo al itinerario.")
-            }
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#245544] dark:text-emerald-400 hover:underline cursor-pointer self-start sm:self-auto"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
+          <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleOpenCreateActivity()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[8px] bg-[#245544] hover:bg-[#1b4335] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer hover:shadow-sm active:scale-[0.98]"
             >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>Añadir día</span>
-          </button>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>Crear nueva actividad</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAddDay}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white/70 dark:bg-stone-800 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] hover:bg-[#E8EFEA]/60 dark:hover:bg-stone-700/60 transition-colors cursor-pointer"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>Añadir día</span>
+            </button>
+          </div>
         </div>
 
         {/* Timeline Container */}
         <div className="flex flex-col gap-8 relative pl-2 sm:pl-0">
-          {/* DÍA 1 */}
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 relative">
-            {/* Timeline Left Date Indicator */}
-            <div className="sm:w-24 shrink-0 flex sm:flex-col items-center sm:items-start gap-2 relative">
-              <span className="text-[10px] font-bold tracking-widest text-[#727B74] uppercase">
-                VIE
-              </span>
-              <span className="px-2.5 py-1 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[11px] font-bold text-[#245544] dark:text-[#A7F3D0]">
-                06 NOV
-              </span>
-            </div>
+          {Array.from({ length: daysCount }, (_, i) => i + 1).map((dayNum) => {
+            const dateInfo = getDayDateInfo(dayNum - 1, startDate)
+            const dayData = getDefaultDayData(dayNum, cityName)
 
-            {/* Timeline Content Card */}
-            <div className="flex-1 p-5 rounded-[14px] bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between border-b border-[#DFE2DA] dark:border-stone-800 pb-3">
-                <div>
-                  <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100">
-                    Día 1 · Viernes, 6 de noviembre
-                  </h3>
-                  <p className="text-xs text-[#727B74] dark:text-stone-400">
-                    Olá, Lisboa. La ciudad nos espera.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col divide-y divide-[#DFE2DA] dark:divide-stone-800/80">
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    11:46
+            return (
+              <div
+                key={dayNum}
+                id={`timeline-day-${dayNum}`}
+                className="flex flex-col sm:flex-row gap-4 sm:gap-6 relative animate-in fade-in duration-200"
+              >
+                {/* Timeline Left Date Indicator */}
+                <div className="sm:w-24 shrink-0 flex sm:flex-col items-center sm:items-start gap-2 relative">
+                  <span className="text-[10px] font-bold tracking-widest text-[#727B74] uppercase">
+                    {dateInfo.weekdayShort}
                   </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Llegada a Lisboa y traslado al centro
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Estação do Oriente · Av. Dom João II · 45 min
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    12:45
+                  <span className="px-2.5 py-1 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[11px] font-bold text-[#245544] dark:text-[#A7F3D0]">
+                    {dateInfo.badge}
                   </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Primera comida en el Mercado da Ribeira
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Av. 24 de Julho, 49 · 1 h
-                    </p>
-                  </div>
                 </div>
 
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    14:00
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Dejar las maletas y hacer el check-in
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Lisboa Pessoa Hotel · Rua da Oliveira ao Carmo, 8 · 1 h
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    16:00
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Paseo por Baixa y la Praça do Comércio
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Praça do Comércio · 1 h 30 min · A pie, sin prisas
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    19:00
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Cena en familia por Chiado
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Largo do Chiado · 1 h 30 min
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* DÍA 2 (con formulario de borrador de actividad según Figma) */}
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 relative">
-            <div className="sm:w-24 shrink-0 flex sm:flex-col items-center sm:items-start gap-2 relative">
-              <span className="text-[10px] font-bold tracking-widest text-[#727B74] uppercase">
-                SÁB
-              </span>
-              <span className="px-2.5 py-1 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[11px] font-bold text-[#245544] dark:text-[#A7F3D0]">
-                07 NOV
-              </span>
-            </div>
-
-            <div className="flex-1 p-5 rounded-[14px] bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between border-b border-[#DFE2DA] dark:border-stone-800 pb-3">
-                <div>
-                  <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100">
-                    Día 2 · Sábado, 7 de noviembre
-                  </h3>
-                  <p className="text-xs text-[#727B74] dark:text-stone-400">
-                    Belém, entre descubrimientos y pasteles.
-                  </p>
-                </div>
-                {!isActivityFormOpen && (
-                  <button
-                    type="button"
-                    onClick={() => setIsActivityFormOpen(true)}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] hover:underline cursor-pointer"
-                  >
-                    + Añadir actividad
-                  </button>
-                )}
-              </div>
-
-              <div className="flex flex-col divide-y divide-[#DFE2DA] dark:divide-stone-800/80">
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    09:00
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Desayuno y tranvía hacia Belém
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Praça da Figueira · Tranvía 15E · 1 h
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    10:00
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Visitar el Monasterio de los Jerónimos
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Praça do Império, 1400-206 · 1 h 30 min
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    12:00
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Una parada dulce en Pastéis de Belém
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Rua de Belém, 84–92 · 45 min
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    14:00
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Jardines, río y Torre de Belém por fuera
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Av. Brasília · 2 h · Paseo y tiempo libre
-                    </p>
-                  </div>
-                </div>
-
-                {/* Dynamic user added activities */}
-                {day2ExtraActivities.map((act, index) => (
-                  <div key={index} className="py-2.5 flex items-start gap-4">
-                    <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                      {act.time}
-                    </span>
+                {/* Timeline Content Card */}
+                <div className="flex-1 p-5 rounded-[14px] bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#DFE2DA] dark:border-stone-800 pb-3">
                     <div>
-                      <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                        {act.title}
-                      </h4>
-                      <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                        {act.location}
+                      <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100">
+                        Día {dayNum} · {dateInfo.dateFull}
+                      </h3>
+                      <p className="text-xs text-[#727B74] dark:text-stone-400">
+                        {dayData.subtitle}
                       </p>
                     </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Collapsible New Activity Draft Form directly from Figma */}
-              {isActivityFormOpen && (
-                <form
-                  onSubmit={handleSaveActivity}
-                  className="p-4 rounded-[10px] bg-[#FAF9F5] dark:bg-stone-800/60 border border-[#CCD2CA] dark:border-stone-700 space-y-3.5 mt-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100">
-                      Nueva actividad
-                    </span>
-                    <span className="text-[9px] font-semibold tracking-wider text-[#727B74] uppercase">
-                      BORRADOR · SIN GUARDAR
-                    </span>
+                    {(!isActivityFormOpen || activityTargetDay !== dayNum) && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCreateActivity(dayNum)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] hover:underline cursor-pointer"
+                      >
+                        + Añadir actividad
+                      </button>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    <div className="sm:col-span-1 space-y-1">
-                      <label className="text-[11px] font-medium text-[#4D5B54] dark:text-stone-300">
-                        Hora
-                      </label>
-                      <input
-                        type="text"
-                        value={newActivityTime}
-                        onChange={(e) => setNewActivityTime(e.target.value)}
-                        placeholder="17:00"
-                        className="w-full h-9 px-3 rounded-[6px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-xs"
-                      />
-                    </div>
-                    <div className="sm:col-span-3 space-y-1">
-                      <label className="text-[11px] font-medium text-[#4D5B54] dark:text-stone-300">
-                        Título
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={newActivityTitle}
-                        onChange={(e) => setNewActivityTitle(e.target.value)}
-                        placeholder="Ej. Atardecer junto al Tajo"
-                        className="w-full h-9 px-3 rounded-[6px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-xs"
-                      />
-                    </div>
+                  <div className="flex flex-col divide-y divide-[#DFE2DA] dark:divide-stone-800/80">
+                    {dayData.activities.map((act, idx) => (
+                      <div key={idx} className="py-2.5 flex items-start gap-4">
+                        <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
+                          {act.time}
+                        </span>
+                        <div>
+                          <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
+                            {act.title}
+                          </h4>
+                          <p className="text-[11px] text-[#727B74] dark:text-stone-400">
+                            {act.location}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+
+                    {renderExtraActivities(dayNum)}
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-[#4D5B54] dark:text-stone-300">
-                      Dirección y duración
-                    </label>
-                    <input
-                      type="text"
-                      value={newActivityLocation}
-                      onChange={(e) => setNewActivityLocation(e.target.value)}
-                      placeholder="Ej. Doca de Santo Amaro, Alcântara · 1 h"
-                      className="w-full h-9 px-3 rounded-[6px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-xs"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsActivityFormOpen(false)}
-                      className="h-8 px-3 text-xs rounded-[6px] cursor-pointer"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="h-8 px-3 text-xs bg-[#245544] hover:bg-[#1b4335] text-white rounded-[6px] cursor-pointer font-medium"
-                    >
-                      Guardar actividad
-                    </Button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-
-          {/* DÍA 3 */}
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 relative">
-            <div className="sm:w-24 shrink-0 flex sm:flex-col items-center sm:items-start gap-2 relative">
-              <span className="text-[10px] font-bold tracking-widest text-[#727B74] uppercase">
-                DOM
-              </span>
-              <span className="px-2.5 py-1 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[11px] font-bold text-[#245544] dark:text-[#A7F3D0]">
-                08 NOV
-              </span>
-            </div>
-
-            <div className="flex-1 p-5 rounded-[14px] bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between border-b border-[#DFE2DA] dark:border-stone-800 pb-3">
-                <div>
-                  <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100">
-                    Día 3 · Domingo, 8 de noviembre
-                  </h3>
-                  <p className="text-xs text-[#727B74] dark:text-stone-400">
-                    Del fondo del mar a los tejados de Alfama.
-                  </p>
+                  {renderActivityForm(dayNum)}
                 </div>
               </div>
-
-              <div className="flex flex-col divide-y divide-[#DFE2DA] dark:divide-stone-800/80">
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    09:30
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Descubrir el Oceanário de Lisboa
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Esplanada Dom Carlos I · Parque das Nações · 2 h 30 min
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    12:30
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Comida junto al río y vuelta al centro
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Alameda dos Oceanos · 1 h 30 min
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    15:00
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Perderse por las calles de Alfama
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Largo de São Miguel · 1 h 30 min · Paseo a pie
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    16:30
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      La luz de la tarde en Santa Luzia
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Miradouro de Santa Luzia · Largo de Santa Luzia · 45 min
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* DÍA 4 */}
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 relative">
-            <div className="sm:w-24 shrink-0 flex sm:flex-col items-center sm:items-start gap-2 relative">
-              <span className="text-[10px] font-bold tracking-widest text-[#727B74] uppercase">
-                LUN
-              </span>
-              <span className="px-2.5 py-1 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[11px] font-bold text-[#245544] dark:text-[#A7F3D0]">
-                09 NOV
-              </span>
-            </div>
-
-            <div className="flex-1 p-5 rounded-[14px] bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between border-b border-[#DFE2DA] dark:border-stone-800 pb-3">
-                <div>
-                  <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100">
-                    Día 4 · Lunes, 9 de noviembre
-                  </h3>
-                  <p className="text-xs text-[#727B74] dark:text-stone-400">
-                    Un último café. Próxima parada: Sintra.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col divide-y divide-[#DFE2DA] dark:divide-stone-800/80">
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    08:30
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Desayunar y despedirse de Lisboa
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Lisboa Pessoa Hotel · Rua da Oliveira ao Carmo, 8 · 45 min
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    09:30
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Check-out y paseo hasta la estación
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Hotel → Estação do Rossio · Rua 1º de Dezembro · 45 min
-                    </p>
-                  </div>
-                </div>
-
-                <div className="py-2.5 flex items-start gap-4">
-                  <span className="w-12 text-xs font-semibold text-[#245544] dark:text-[#A7F3D0] shrink-0 pt-0.5">
-                    10:41
-                  </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-medium text-[#203D34] dark:text-stone-200">
-                      Tren a Sintra · Continuamos el viaje
-                    </h4>
-                    <p className="text-[11px] text-[#727B74] dark:text-stone-400">
-                      Estação do Rossio → Estação de Sintra · 40 min · Llegada 11:21
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+            )
+          })}
         </div>
       </section>
 

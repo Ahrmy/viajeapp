@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import type { Destination } from "./DestinationsSlider"
 import type { TripOption } from "./Sidebar"
 import type { HeroData } from "./EditHeroModal"
@@ -17,6 +17,7 @@ interface ItineraryViewProps {
   onUpdateDays: (cityId: string, days: number) => void
   onDeleteCity?: (cityId: string) => void
   onInvite?: () => void
+  onReorderDestinations?: (reordered: Destination[]) => void
 }
 
 const MONTH_NAMES = [
@@ -86,16 +87,35 @@ export function ItineraryView({
   onUpdateDays,
   onDeleteCity,
   onInvite,
+  onReorderDestinations,
 }: ItineraryViewProps) {
+  const [items, setItems] = useState<Destination[]>(destinations)
   const [activeMenuCityId, setActiveMenuCityId] = useState<string | null>(null)
   const [cityToDelete, setCityToDelete] = useState<Destination | null>(null)
   const [showAddTransportNotice, setShowAddTransportNotice] = useState(false)
   const [cityTransports, setCityTransports] = useState<Record<string, Transporte[]>>({})
 
+  // Drag and Drop states
+  const [draggedCityId, setDraggedCityId] = useState<string | null>(null)
+  const [dragOverCityId, setDragOverCityId] = useState<string | null>(null)
+  const [dragOverPosition, setDragOverPosition] = useState<"above" | "below" | null>(null)
+  const [feedbackToast, setFeedbackToast] = useState<string | null>(null)
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    setItems(destinations)
+  }, [destinations])
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    }
+  }, [])
+
   useEffect(() => {
     let isMounted = true
     Promise.all(
-      destinations.map(async (d) => {
+      items.map(async (d) => {
         const trs = await tripService.getTransports(d.id)
         return { cityId: d.id, trs }
       })
@@ -110,14 +130,116 @@ export function ItineraryView({
     return () => {
       isMounted = false
     }
-  }, [destinations])
+  }, [items])
+
+  // Drag and Drop event handlers
+  const handleDragStart = (e: React.DragEvent, cityId: string) => {
+    if (items.length <= 1) {
+      e.preventDefault()
+      return
+    }
+    const target = e.target as HTMLElement
+    // Ignore drag start if clicking buttons, inputs, links, or dropdown
+    if (
+      target.closest("button") ||
+      target.closest("input") ||
+      target.closest("a") ||
+      target.closest(".no-drag")
+    ) {
+      e.preventDefault()
+      return
+    }
+
+    setDraggedCityId(cityId)
+    e.dataTransfer.effectAllowed = "move"
+    e.dataTransfer.setData("text/plain", cityId)
+  }
+
+  const handleDragOver = (e: React.DragEvent, targetCityId: string) => {
+    if (!draggedCityId || draggedCityId === targetCityId) {
+      return
+    }
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const midY = rect.top + rect.height / 2
+    const position: "above" | "below" = e.clientY < midY ? "above" : "below"
+
+    if (dragOverCityId !== targetCityId || dragOverPosition !== position) {
+      setDragOverCityId(targetCityId)
+      setDragOverPosition(position)
+    }
+  }
+
+  const handleDragEnd = () => {
+    setDraggedCityId(null)
+    setDragOverCityId(null)
+    setDragOverPosition(null)
+  }
+
+  const handleDrop = (e: React.DragEvent, targetCityId: string) => {
+    e.preventDefault()
+    if (!draggedCityId || draggedCityId === targetCityId) {
+      handleDragEnd()
+      return
+    }
+
+    const fromIndex = items.findIndex((d) => d.id === draggedCityId)
+    const toIndex = items.findIndex((d) => d.id === targetCityId)
+
+    if (fromIndex === -1 || toIndex === -1) {
+      handleDragEnd()
+      return
+    }
+
+    let finalIndex = dragOverPosition === "below" ? toIndex + 1 : toIndex
+    if (fromIndex < finalIndex) {
+      finalIndex -= 1
+    }
+
+    if (fromIndex !== finalIndex) {
+      const next = [...items]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(finalIndex, 0, moved)
+
+      setItems(next)
+      onReorderDestinations?.(next)
+
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+      setFeedbackToast(`"${moved.name}" ahora es la parada ${finalIndex + 1}`)
+      toastTimeoutRef.current = setTimeout(() => {
+        setFeedbackToast(null)
+      }, 3000)
+    }
+
+    handleDragEnd()
+  }
+
+  const handleMoveCity = (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= items.length) return
+
+    const next = [...items]
+    const [moved] = next.splice(index, 1)
+    next.splice(targetIndex, 0, moved)
+
+    setItems(next)
+    onReorderDestinations?.(next)
+
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    setFeedbackToast(`"${moved.name}" ahora es la parada ${targetIndex + 1}`)
+    toastTimeoutRef.current = setTimeout(() => {
+      setFeedbackToast(null)
+    }, 3000)
+  }
 
   // Calculate total nights and days
-  const totalNights = destinations.reduce((acc, d) => acc + (d.nights || 1), 0)
+  const totalNights = items.reduce((acc, d) => acc + (d.nights || 1), 0)
   const totalDays = totalNights + 1
 
   // Format cities joined string for editorial banner
-  const citiesNames = destinations.map((d) => d.name)
+  const citiesNames = items.map((d) => d.name)
   let citiesJoined = citiesNames.join(", ")
   if (citiesNames.length > 1) {
     citiesJoined = `${citiesNames.slice(0, -1).join(", ")} y ${citiesNames[citiesNames.length - 1]}`
@@ -125,7 +247,7 @@ export function ItineraryView({
 
   // Calculate cumulative offsets for date segments
   let cumulativeNights = 0
-  const citySegments = destinations.map((dest) => {
+  const citySegments = items.map((dest) => {
     const nights = Math.max(1, (dest.nights || 1) > 1 ? (dest.nights || 1) - 1 : 1)
     const offset = cumulativeNights
     cumulativeNights += nights
@@ -137,8 +259,8 @@ export function ItineraryView({
     }
   })
 
-  const firstCityName = destinations[0]?.name || "Lisboa"
-  const lastCityName = destinations[destinations.length - 1]?.name || "Oporto"
+  const firstCityName = items[0]?.name || "Lisboa"
+  const lastCityName = items[items.length - 1]?.name || "Oporto"
 
   return (
     <div className="flex flex-col gap-8 w-full animate-in fade-in duration-200">
@@ -652,20 +774,40 @@ export function ItineraryView({
 
       {/* 6. Destinos del Itinerario (Timeline) */}
       <section className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <h3 className="font-serif text-xl sm:text-2xl text-[#203D34] dark:text-stone-100">
-              Vuestro itinerario, parada a parada
-            </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h3 className="font-serif text-xl sm:text-2xl text-[#203D34] dark:text-stone-100">
+                Vuestro itinerario, parada a parada
+              </h3>
+              {items.length > 1 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#E8EFEA] dark:bg-emerald-950/60 border border-[#245544]/20 text-[11px] font-medium text-[#245544] dark:text-[#A7F3D0] shadow-2xs">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="7 15 12 20 17 15" />
+                    <polyline points="7 9 12 4 17 9" />
+                  </svg>
+                  <span>Arrastra las tarjetas para cambiar el orden</span>
+                </span>
+              )}
+            </div>
             <p className="text-xs text-[#727B74] dark:text-stone-400">
-              {destinations.length} {destinations.length === 1 ? "ciudad" : "ciudades"}, un mismo viaje. Organizad la estancia en cada destino.
+              {items.length} {items.length === 1 ? "ciudad" : "ciudades"}, un mismo viaje. Organizad la estancia en cada destino.
             </p>
           </div>
 
           <button
             type="button"
             onClick={onAddDestination}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-[8px] bg-white dark:bg-stone-800 border border-[#CCD2CA] dark:border-stone-700 text-[#245544] dark:text-[#A7F3D0] text-xs font-semibold hover:bg-stone-50 dark:hover:bg-stone-700/60 transition-colors shadow-2xs cursor-pointer"
+            className="self-start sm:self-auto flex items-center gap-1.5 px-3.5 py-2 rounded-[8px] bg-white dark:bg-stone-800 border border-[#CCD2CA] dark:border-stone-700 text-[#245544] dark:text-[#A7F3D0] text-xs font-semibold hover:bg-stone-50 dark:hover:bg-stone-700/60 transition-colors shadow-2xs cursor-pointer"
           >
             <svg
               width="14"
@@ -738,8 +880,39 @@ export function ItineraryView({
                 </div>
 
                 {/* Right Card */}
-                <div className="flex-1 pb-6 sm:pb-8">
-                  <div className="bg-white dark:bg-stone-900 border border-[#CCD2CA] dark:border-stone-800 rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row group">
+                <div className="flex-1 pb-6 sm:pb-8 relative">
+                  <div
+                    draggable={items.length > 1}
+                    onDragStart={(e) => handleDragStart(e, city.id)}
+                    onDragOver={(e) => handleDragOver(e, city.id)}
+                    onDrop={(e) => handleDrop(e, city.id)}
+                    onDragEnd={handleDragEnd}
+                    className={`relative bg-white dark:bg-stone-900 border rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row group ${
+                      draggedCityId === city.id
+                        ? "opacity-35 scale-[0.99] border-dashed border-2 border-[#245544] dark:border-emerald-400 bg-[#245544]/5 cursor-grabbing"
+                        : dragOverCityId === city.id
+                        ? dragOverPosition === "above"
+                          ? "border-t-4 border-t-[#245544] dark:border-t-emerald-400 border-x-[#245544]/40 border-b-[#245544]/40 ring-2 ring-[#245544]/20"
+                          : "border-b-4 border-b-[#245544] dark:border-b-emerald-400 border-x-[#245544]/40 border-t-[#245544]/40 ring-2 ring-[#245544]/20"
+                        : "border-[#CCD2CA] dark:border-stone-800"
+                    }`}
+                  >
+                    {/* Floating Drop indicator pill */}
+                    {dragOverCityId === city.id && draggedCityId !== city.id && (
+                      <div
+                        className={`absolute left-4 z-30 px-3 py-1 rounded-full bg-[#245544] text-white dark:bg-emerald-600 text-[11px] font-semibold shadow-lg pointer-events-none flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-150 ${
+                          dragOverPosition === "above" ? "top-2" : "bottom-2"
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-white dark:bg-stone-900 animate-pulse" />
+                        <span>
+                          {dragOverPosition === "above"
+                            ? `Colocar aquí · Parada ${idx + 1}`
+                            : `Colocar aquí · Parada ${idx + 2}`}
+                        </span>
+                      </div>
+                    )}
+
                     {/* City Thumbnail */}
                     <div
                       onClick={() => onSelectCity(city.id)}
@@ -748,7 +921,8 @@ export function ItineraryView({
                       <img
                         src={city.image}
                         alt={city.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                        draggable={false}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out select-none pointer-events-none"
                       />
                       <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
                     </div>
@@ -802,68 +976,131 @@ export function ItineraryView({
                             )}
                           </div>
 
-                          {/* Options dropdown button */}
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setActiveMenuCityId(
-                                  activeMenuCityId === city.id ? null : city.id
-                                )
-                              }}
-                              className="p-1.5 rounded-md text-[#727B74] hover:text-[#203D34] dark:text-stone-400 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
-                              title="Opciones del destino"
-                            >
-                              <svg
-                                width="18"
-                                height="18"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <circle cx="12" cy="12" r="1" />
-                                <circle cx="19" cy="12" r="1" />
-                                <circle cx="5" cy="12" r="1" />
-                              </svg>
-                            </button>
-
-                            {/* Dropdown Menu */}
-                            {activeMenuCityId === city.id && (
+                          {/* Drag Handle & Options */}
+                          <div className="flex items-center gap-1">
+                            {items.length > 1 && (
                               <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="absolute right-0 top-full mt-1 w-44 rounded-lg bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 shadow-lg py-1 z-30 animate-in fade-in zoom-in-95"
+                                draggable={true}
+                                onDragStart={(e) => handleDragStart(e, city.id)}
+                                className="p-1.5 rounded-md text-[#727B74] hover:text-[#203D34] dark:text-stone-400 dark:hover:text-stone-200 hover:bg-[#FAF9F5] dark:hover:bg-stone-800 transition-colors cursor-grab active:cursor-grabbing select-none"
+                                title="Arrastrar para mover parada"
+                                aria-label="Arrastrar para mover parada"
                               >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveMenuCityId(null)
-                                    onSelectCity(city.id)
-                                  }}
-                                  className="w-full px-3 py-2 text-left text-xs text-[#203D34] dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer"
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
                                 >
-                                  <svg
-                                    width="13"
-                                    height="13"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                  >
-                                    <polyline points="9 18 15 12 9 6" />
-                                  </svg>
-                                  <span>Acceder al destino</span>
-                                </button>
+                                  <circle cx="9" cy="5" r="1.2" />
+                                  <circle cx="9" cy="12" r="1.2" />
+                                  <circle cx="9" cy="19" r="1.2" />
+                                  <circle cx="15" cy="5" r="1.2" />
+                                  <circle cx="15" cy="12" r="1.2" />
+                                  <circle cx="15" cy="19" r="1.2" />
+                                </svg>
+                              </div>
+                            )}
 
-                                {onEditCity && (
+                            {/* Options dropdown button */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setActiveMenuCityId(
+                                    activeMenuCityId === city.id ? null : city.id
+                                  )
+                                }}
+                                className="p-1.5 rounded-md text-[#727B74] hover:text-[#203D34] dark:text-stone-400 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                                title="Opciones del destino"
+                              >
+                                <svg
+                                  width="18"
+                                  height="18"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <circle cx="12" cy="12" r="1" />
+                                  <circle cx="19" cy="12" r="1" />
+                                  <circle cx="5" cy="12" r="1" />
+                                </svg>
+                              </button>
+
+                              {/* Dropdown Menu */}
+                              {activeMenuCityId === city.id && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute right-0 top-full mt-1 w-48 rounded-lg bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 shadow-xl py-1 z-30 animate-in fade-in zoom-in-95"
+                                >
+                                  {items.length > 1 && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        disabled={idx === 0}
+                                        onClick={() => {
+                                          setActiveMenuCityId(null)
+                                          handleMoveCity(idx, "up")
+                                        }}
+                                        className="w-full px-3 py-2 text-left text-xs text-[#203D34] dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-35 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer transition-colors"
+                                      >
+                                        <svg
+                                          width="13"
+                                          height="13"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <polyline points="18 15 12 9 6 15" />
+                                        </svg>
+                                        <span>Mover arriba</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        disabled={idx === items.length - 1}
+                                        onClick={() => {
+                                          setActiveMenuCityId(null)
+                                          handleMoveCity(idx, "down")
+                                        }}
+                                        className="w-full px-3 py-2 text-left text-xs text-[#203D34] dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-35 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer transition-colors"
+                                      >
+                                        <svg
+                                          width="13"
+                                          height="13"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <polyline points="6 9 12 15 18 9" />
+                                        </svg>
+                                        <span>Mover abajo</span>
+                                      </button>
+
+                                      <div className="my-1 border-t border-[#DFE2DA] dark:border-stone-800" />
+                                    </>
+                                  )}
+
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setActiveMenuCityId(null)
-                                      onEditCity(city)
+                                      onSelectCity(city.id)
                                     }}
                                     className="w-full px-3 py-2 text-left text-xs text-[#203D34] dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer"
                                   >
@@ -875,37 +1112,60 @@ export function ItineraryView({
                                       stroke="currentColor"
                                       strokeWidth="2"
                                     >
-                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                      <polyline points="9 18 15 12 9 6" />
                                     </svg>
-                                    <span>Editar destino</span>
+                                    <span>Acceder al destino</span>
                                   </button>
-                                )}
 
-                                {onDeleteCity && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveMenuCityId(null)
-                                      setCityToDelete(city)
-                                    }}
-                                    className="w-full px-3 py-2 text-left text-xs text-[#A34B3D] hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2 cursor-pointer"
-                                  >
-                                    <svg
-                                      width="13"
-                                      height="13"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="2"
+                                  {onEditCity && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveMenuCityId(null)
+                                        onEditCity(city)
+                                      }}
+                                      className="w-full px-3 py-2 text-left text-xs text-[#203D34] dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer"
                                     >
-                                      <path d="M3 6h18" />
-                                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                                    </svg>
-                                    <span>Eliminar destino</span>
-                                  </button>
-                                )}
-                              </div>
-                            )}
+                                      <svg
+                                        width="13"
+                                        height="13"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                      >
+                                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                      </svg>
+                                      <span>Editar destino</span>
+                                    </button>
+                                  )}
+
+                                  {onDeleteCity && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveMenuCityId(null)
+                                        setCityToDelete(city)
+                                      }}
+                                      className="w-full px-3 py-2 text-left text-xs text-[#A34B3D] hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <svg
+                                        width="13"
+                                        height="13"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                      >
+                                        <path d="M3 6h18" />
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                      </svg>
+                                      <span>Eliminar destino</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -994,6 +1254,7 @@ export function ItineraryView({
                           <div className="flex items-center border border-[#CCD2CA] dark:border-stone-700 rounded-lg overflow-hidden bg-white dark:bg-stone-800 shadow-2xs">
                             <button
                               type="button"
+                              onMouseDown={(e) => e.stopPropagation()}
                               onClick={() =>
                                 onUpdateDays(city.id, Math.max(1, city.nights - 1))
                               }
@@ -1008,6 +1269,7 @@ export function ItineraryView({
                             </span>
                             <button
                               type="button"
+                              onMouseDown={(e) => e.stopPropagation()}
                               onClick={() =>
                                 onUpdateDays(city.id, city.nights + 1)
                               }
@@ -1026,6 +1288,7 @@ export function ItineraryView({
                         {/* CTA button to enter the city */}
                         <button
                           type="button"
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={() => onSelectCity(city.id)}
                           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#245544] text-white hover:bg-[#1b4335] text-xs font-medium shadow-xs transition-colors cursor-pointer ml-auto"
                         >
@@ -1131,6 +1394,34 @@ export function ItineraryView({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Backdrop for closing active card menu */}
+      {activeMenuCityId && (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={() => setActiveMenuCityId(null)}
+        />
+      )}
+
+      {/* Floating Reorder Toast Notification */}
+      {feedbackToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#245544] text-white text-xs font-medium shadow-2xl animate-in slide-in-from-bottom-3 fade-in duration-200 border border-emerald-500/30">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-emerald-300 shrink-0"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span>{feedbackToast}</span>
         </div>
       )}
     </div>

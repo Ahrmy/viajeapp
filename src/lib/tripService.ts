@@ -513,6 +513,7 @@ export const DEMO_HOTELS: Hotel[] = [
 ];
 
 let localHotels: Hotel[] = [...DEMO_HOTELS];
+let localActivities: Actividad[] = [];
 
 // ============================================================
 // SERVICIOS CRUD CONECTADOS A SUPABASE
@@ -806,6 +807,33 @@ export const tripService = {
   /**
    * Actualiza datos de una ciudad (días, foto, cabecero, nombre)
    */
+  /**
+   * Obtiene los datos de una ciudad por su ID
+   */
+  async getCity(cityId: string): Promise<Ciudad | null> {
+    if (
+      !isSupabaseConfigured ||
+      cityId.startsWith("demo-") ||
+      cityId.startsWith("city-")
+    ) {
+      const found = localCities.find((c) => c.id === cityId);
+      return found || null;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("ciudades")
+        .select("*")
+        .eq("id", cityId)
+        .single();
+
+      if (error || !data) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
   async updateCity(
     cityId: string,
     updates: CiudadUpdate,
@@ -864,6 +892,50 @@ export const tripService = {
       return {
         success: false,
         error: err instanceof Error ? err.message : "Error al eliminar ciudad",
+      };
+    }
+  },
+
+  /**
+   * Reordena las ciudades de un viaje según la lista ordenada de IDs
+   */
+  async reorderCities(
+    tripId: string,
+    orderedCityIds: string[]
+  ): Promise<{ success: boolean; error?: string }> {
+    if (
+      !isSupabaseConfigured ||
+      tripId.startsWith("demo-") ||
+      tripId.startsWith("trip-")
+    ) {
+      localCities = localCities.map((c) => {
+        if (c.viaje_id === tripId) {
+          const idx = orderedCityIds.indexOf(c.id);
+          if (idx !== -1) {
+            return { ...c, orden: idx };
+          }
+        }
+        return c;
+      });
+      return { success: true };
+    }
+
+    try {
+      const updates = orderedCityIds.map((cityId, index) =>
+        supabase
+          .from("ciudades")
+          .update({ orden: index })
+          .eq("id", cityId)
+      );
+      await Promise.all(updates);
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error:
+          err instanceof Error
+            ? err.message
+            : "Error al reordenar ciudades",
       };
     }
   },
@@ -1115,7 +1187,7 @@ export const tripService = {
   }> {
     if (!isSupabaseConfigured || cityId.startsWith("demo-")) {
       return {
-        activities: [],
+        activities: localActivities.filter((a) => a.ciudad_id === cityId),
         hotels: localHotels.filter((h) => h.ciudad_id === cityId),
         transports: localTransports.filter((t) => t.ciudad_id === cityId),
       };
@@ -1476,6 +1548,7 @@ export const tripService = {
         costo_estimado: activity.costo_estimado ?? 0,
         creado_en: new Date().toISOString(),
       };
+      localActivities.push(demoAct);
       return { data: demoAct };
     }
 
@@ -1498,6 +1571,27 @@ export const tripService = {
         data: null,
         error:
           err instanceof Error ? err.message : "Error al guardar actividad",
+      };
+    }
+  },
+
+  /**
+   * Elimina una actividad
+   */
+  async deleteActivity(id: string): Promise<{ success: boolean; error?: string }> {
+    if (!isSupabaseConfigured || id.startsWith("act-") || id.startsWith("demo-")) {
+      localActivities = localActivities.filter((a) => a.id !== id);
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase.from("actividades").delete().eq("id", id);
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al eliminar actividad",
       };
     }
   },

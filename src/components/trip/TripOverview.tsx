@@ -254,6 +254,8 @@ export function TripOverview({
       setTripHeroes((prev) => ({ ...prev, ...heroesMap }))
       setCurrentTrip(options[0])
       setInlineTitleValue(options[0].name)
+      setSelectedCityId(null)
+      setActiveSection("general")
       if (res.data[0].presupuesto_total) {
         setBudgetTotal(Number(res.data[0].presupuesto_total))
       }
@@ -276,13 +278,13 @@ export function TripOverview({
       const dests = loadedCities.map(mapCityToDestination)
       setDestinationsList(dests)
 
+      // Al entrar a un viaje, la vista inicial debe ser siempre la Vista General
       if (loadedCities.length > 0) {
-        setSelectedCityId(loadedCities[0].id)
         setSelectedCityName(loadedCities[0].nombre)
       } else {
-        setSelectedCityId(null)
         setSelectedCityName("")
       }
+      setSelectedCityId(null)
 
       // Cargar tareas con mapeo de nombres de ciudades para este viaje
       const cityMap: Record<string, string> = {}
@@ -427,6 +429,8 @@ export function TripOverview({
     setTripsList((prev) => [newTrip, ...prev])
     setCurrentTrip(newTrip)
     setInlineTitleValue(newName)
+    setSelectedCityId(null)
+    setActiveSection("general")
     setIsCreateTripModalOpen(false)
   }
 
@@ -453,6 +457,7 @@ export function TripOverview({
       setInlineTitleValue(nextTrip.name)
     }
     setSelectedCityId(null)
+    setActiveSection("general")
   }
 
   const handleToggleTask = async (id: string) => {
@@ -624,6 +629,7 @@ export function TripOverview({
             setCurrentTrip(trip)
             setInlineTitleValue(trip.name)
             setSelectedCityId(null)
+            setActiveSection("general")
           }}
           userName={userName}
           onSignOut={onSignOut}
@@ -642,6 +648,7 @@ export function TripOverview({
             cityName={selectedCityName}
             cityData={destinationsList.find((d) => d.id === selectedCityId)}
             tripName={currentTrip.name}
+            startDate={tripHeroes[currentTrip.id]?.startDate || "2026-11-06"}
             travelersCount={tripHeroes[currentTrip.id]?.travelersCount || 4}
             isAdmin={isAdmin}
             onBack={() => {
@@ -665,6 +672,20 @@ export function TripOverview({
             onEditCity={(dest) => {
               setEditingCityData(dest)
               setIsAddDestinationOpen(true)
+            }}
+            onUpdateDays={async (cityId, days) => {
+              setDestinationsList((prev) =>
+                prev.map((d) =>
+                  d.id === cityId
+                    ? {
+                        ...d,
+                        nights: days,
+                        dates: `${days} ${days === 1 ? "día" : "días"}`,
+                      }
+                    : d
+                )
+              )
+              await tripService.updateCity(cityId, { dias: days })
             }}
           />
         ) : activeSection === "itinerario" ? (
@@ -711,6 +732,15 @@ export function TripOverview({
               await tripService.deleteCity(cityId)
             }}
             onInvite={() => setIsInviteOpen(true)}
+            onReorderDestinations={async (newDestinations) => {
+              setDestinationsList(newDestinations)
+              if (currentTrip?.id) {
+                await tripService.reorderCities(
+                  currentTrip.id,
+                  newDestinations.map((d) => d.id)
+                )
+              }
+            }}
           />
         ) : activeSection === "presupuesto" ? (
           <BudgetView
