@@ -65,22 +65,34 @@ export interface Database {
         Row: {
           id: string
           viaje_id: string
-          user_id: string
+          user_id?: string | null
+          nombre?: string | null
+          email?: string | null
+          avatar_url?: string | null
           rol: RolMiembro
+          estado?: string | null
           invitado_en: string
         }
         Insert: {
           id?: string
           viaje_id: string
-          user_id: string
+          user_id?: string | null
+          nombre?: string | null
+          email?: string | null
+          avatar_url?: string | null
           rol?: RolMiembro
+          estado?: string | null
           invitado_en?: string
         }
         Update: {
           id?: string
           viaje_id?: string
-          user_id?: string
+          user_id?: string | null
+          nombre?: string | null
+          email?: string | null
+          avatar_url?: string | null
           rol?: RolMiembro
+          estado?: string | null
           invitado_en?: string
         }
         Relationships: []
@@ -393,3 +405,18 @@ export type Transporte = Database["public"]["Tables"]["transportes"]["Row"]
 export type TransporteInsert = Database["public"]["Tables"]["transportes"]["Insert"]
 export type TransporteUpdate = Database["public"]["Tables"]["transportes"]["Update"]
 export type PresupuestoResumen = Database["public"]["Views"]["presupuesto_resumen"]["Row"]
+
+export type EstadoMiembro = "activo" | "pendiente"
+
+export interface TripMember {
+  id: string
+  viaje_id: string
+  user_id?: string | null
+  nombre: string
+  email: string
+  rol: RolMiembro
+  estado: EstadoMiembro
+  invitado_en: string
+  avatar_url?: string | null
+}
+

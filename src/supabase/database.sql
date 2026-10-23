@@ -51,11 +51,18 @@ ALTER TABLE viajes ADD COLUMN IF NOT EXISTS etiqueta_ubicacion text;
 CREATE TABLE IF NOT EXISTS viaje_miembros (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   viaje_id    uuid NOT NULL REFERENCES viajes(id) ON DELETE CASCADE,
-  user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id     uuid REFERENCES auth.users(id) ON DELETE CASCADE,
   rol         rol_miembro NOT NULL DEFAULT 'viewer',
   invitado_en timestamptz NOT NULL DEFAULT now(),
   UNIQUE (viaje_id, user_id)
 );
+
+-- Migraciones seguras para miembros e invitaciones
+ALTER TABLE viaje_miembros ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE viaje_miembros ADD COLUMN IF NOT EXISTS nombre text;
+ALTER TABLE viaje_miembros ADD COLUMN IF NOT EXISTS avatar_url text;
+ALTER TABLE viaje_miembros ADD COLUMN IF NOT EXISTS estado text NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo', 'pendiente'));
+ALTER TABLE viaje_miembros ALTER COLUMN user_id DROP NOT NULL;
 
 -- Ciudades destino (eje del itinerario)
 CREATE TABLE IF NOT EXISTS ciudades (

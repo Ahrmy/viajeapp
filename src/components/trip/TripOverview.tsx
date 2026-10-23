@@ -27,9 +27,10 @@ import {
   DEFAULT_COVER_IMAGE,
   DEFAULT_DESTINATION_IMAGE,
 } from "@/lib/tripService"
+import { ManageMembersModal } from "./ManageMembersModal"
 import { isSupabaseConfigured } from "@/supabaseClient"
 import type { User } from "@supabase/supabase-js"
-import type { Ciudad, Tarea } from "@/types/database"
+import type { Ciudad, Tarea, TripMember } from "@/types/database"
 
 interface TripOverviewProps {
   user?: User | null
@@ -53,6 +54,17 @@ function calculateDaysRemaining(startDate?: string | null): number {
   } catch {
     return 21
   }
+}
+
+function getMemberInitials(name?: string, email?: string): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase()
+    }
+    return parts[0].substring(0, 2).toUpperCase()
+  }
+  return email ? email.substring(0, 2).toUpperCase() : "??"
 }
 
 function formatDepartureDay(startDate?: string | null, fallback = "6 de noviembre"): string {
@@ -155,8 +167,7 @@ export function TripOverview({
   const [isCreateTripModalOpen, setIsCreateTripModalOpen] = useState(false)
   const [isEditingTitleInline, setIsEditingTitleInline] = useState(false)
   const [inlineTitleValue, setInlineTitleValue] = useState(tripsList[0].name)
-  const [inviteEmail, setInviteEmail] = useState("")
-  const [inviteSuccess, setInviteSuccess] = useState(false)
+  const [membersList, setMembersList] = useState<TripMember[]>([])
   const [editingCityData, setEditingCityData] = useState<Destination | null>(null)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
   const [selectedCityName, setSelectedCityName] = useState<string>("Lisboa")
@@ -313,6 +324,12 @@ export function TripOverview({
       } else {
         setBudgetSpent(0)
       }
+    })
+
+    // Cargar miembros y viajeros del viaje activo
+    tripService.getMembers(currentTrip.id).then((members) => {
+      if (!isMounted) return
+      setMembersList(members || [])
     })
 
     return () => {
@@ -532,22 +549,6 @@ export function TripOverview({
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark")
-  }
-
-  const handleSendInvite = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!inviteEmail.trim()) return
-
-    if (user?.id && !currentTrip.id.startsWith("demo-")) {
-      await tripService.inviteMember(currentTrip.id, user.id, "viewer")
-    }
-
-    setInviteSuccess(true)
-    setTimeout(() => {
-      setInviteSuccess(false)
-      setIsInviteOpen(false)
-      setInviteEmail("")
-    }, 1800)
   }
 
   return (
@@ -992,35 +993,47 @@ export function TripOverview({
               </div>
 
               {/* Travelers Avatars & Invite button */}
-              <div className="flex items-center gap-3">
-                <div className="flex items-center -space-x-2">
-                  <Avatar className="h-[34px] w-[34px] border-2 border-[#FAF9F5] dark:border-stone-900 shadow-2xs">
-                    <AvatarFallback className="bg-[#DDEAE2] text-[#245544] text-[11px] font-semibold">
-                      CL
-                    </AvatarFallback>
-                  </Avatar>
-                  <Avatar className="h-[34px] w-[34px] border-2 border-[#FAF9F5] dark:border-stone-900 shadow-2xs">
-                    <AvatarFallback className="bg-[#EFE9DF] text-[#7A6242] text-[11px] font-semibold">
-                      PM
-                    </AvatarFallback>
-                  </Avatar>
-                  <Avatar className="h-[34px] w-[34px] border-2 border-[#FAF9F5] dark:border-stone-900 shadow-2xs">
-                    <AvatarFallback className="bg-[#DDEAE2] text-[#245544] text-[11px] font-semibold">
-                      LM
-                    </AvatarFallback>
-                  </Avatar>
-                  <Avatar className="h-[34px] w-[34px] border-2 border-[#FAF9F5] dark:border-stone-900 shadow-2xs">
-                    <AvatarFallback className="bg-[#EFE9DF] text-[#7A6242] text-[11px] font-semibold">
-                      NM
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsInviteOpen(true)}
+                  className="flex items-center -space-x-2 group p-0.5 -m-0.5 rounded-full hover:opacity-90 transition-opacity cursor-pointer"
+                  title="Gestionar compañeros e invitados de este viaje"
+                >
+                  {membersList.slice(0, 4).map((m, idx) => (
+                    <Avatar
+                      key={m.id || idx}
+                      className="h-[34px] w-[34px] border-2 border-[#FAF9F5] dark:border-stone-900 shadow-2xs transition-transform group-hover:scale-105"
+                      title={`${m.nombre} (${m.rol === "owner" ? "Organizador" : m.rol === "editor" ? "Editor" : "Lector"})${m.estado === "pendiente" ? " - Invitación pendiente" : ""}`}
+                    >
+                      <AvatarFallback
+                        className={`text-[11px] font-semibold ${
+                          idx % 2 === 0
+                            ? "bg-[#DDEAE2] text-[#245544]"
+                            : "bg-[#EFE9DF] text-[#7A6242]"
+                        }`}
+                      >
+                        {getMemberInitials(m.nombre, m.email)}
+                      </AvatarFallback>
+                    </Avatar>
+                  ))}
+
+                  {membersList.length > 4 && (
+                    <div
+                      className="h-[34px] w-[34px] rounded-full border-2 border-[#FAF9F5] dark:border-stone-900 bg-[#E8EFEA] dark:bg-stone-800 text-[#245544] dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform"
+                      title={`+${membersList.length - 4} viajeros más`}
+                    >
+                      +{membersList.length - 4}
+                    </div>
+                  )}
+                </button>
 
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsInviteOpen(true)}
-                  className="h-9 px-3.5 rounded-[8px] border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-[#245544] dark:text-[#A7F3D0] hover:bg-[#E8EFEA] dark:hover:bg-stone-800 text-xs font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  title="Gestionar viajeros e invitar"
+                  className="h-9 px-3.5 rounded-[8px] border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 text-[#245544] dark:text-[#A7F3D0] hover:bg-[#E8EFEA] dark:hover:bg-stone-800 text-xs font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
                 >
                   <svg
                     width="14"
@@ -1197,72 +1210,54 @@ export function TripOverview({
         )}
       </main>
 
-      {/* Modal: Invitar Viajeros */}
-      {isInviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-md p-6 rounded-[16px] bg-white dark:bg-stone-900 border border-[#CCD2CA] dark:border-stone-700 shadow-xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-serif text-xl font-normal text-[#203D34] dark:text-stone-100">
-                Invitar a viajar juntos
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsInviteOpen(false)}
-                className="p-1 rounded-sm text-stone-500 hover:text-stone-800 dark:hover:text-stone-200"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-xs text-[#4D5B54] dark:text-stone-400">
-              Envía una invitación a familiares o amigos para que se unan a planear{" "}
-              <strong>{currentTrip.name}</strong>.
-            </p>
-
-            {inviteSuccess ? (
-              <div className="p-3 bg-emerald-50 text-emerald-800 rounded-md text-xs font-medium border border-emerald-200">
-                ¡Invitación enviada con éxito!
-              </div>
-            ) : (
-              <form onSubmit={handleSendInvite} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="invite-email"
-                    className="text-xs font-medium text-[#203D34] dark:text-stone-300"
-                  >
-                    Correo electrónico
-                  </label>
-                  <input
-                    id="invite-email"
-                    type="email"
-                    required
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="familiar@correo.com"
-                    className="w-full h-11 px-3.5 rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-sm focus:outline-hidden focus:ring-1 focus:ring-[#245544]"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsInviteOpen(false)}
-                    className="h-10 text-xs rounded-[8px]"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="h-10 text-xs bg-[#245544] hover:bg-[#1b4335] text-white rounded-[8px]"
-                  >
-                    Enviar invitación
-                  </Button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Modal: Gestionar Viajeros e Invitados */}
+      <ManageMembersModal
+        isOpen={isInviteOpen}
+        onClose={() => setIsInviteOpen(false)}
+        tripId={currentTrip.id}
+        tripName={currentTrip.name}
+        members={membersList}
+        currentUserEmail={user?.email}
+        onInvite={async (email, nombre, rol) => {
+          const res = await tripService.inviteMember(
+            currentTrip.id,
+            email,
+            nombre,
+            rol
+          )
+          if (res.success && res.data) {
+            setMembersList((prev) => [...prev, res.data!])
+            setTripHeroes((prev) => {
+              const currentHero = prev[currentTrip.id]
+              if (!currentHero) return prev
+              return {
+                ...prev,
+                [currentTrip.id]: {
+                  ...currentHero,
+                  travelersCount: Math.max(
+                    currentHero.travelersCount,
+                    membersList.length + 1
+                  ),
+                },
+              }
+            })
+          }
+          return res
+        }}
+        onUpdateRole={async (memberId, rol) => {
+          await tripService.updateMemberRole(currentTrip.id, memberId, rol)
+          setMembersList((prev) =>
+            prev.map((m) => (m.id === memberId ? { ...m, rol } : m))
+          )
+        }}
+        onRemoveMember={async (memberId) => {
+          await tripService.removeMember(currentTrip.id, memberId)
+          setMembersList((prev) => prev.filter((m) => m.id !== memberId))
+        }}
+        onResendInvite={async (memberId) => {
+          await tripService.resendInvite(currentTrip.id, memberId)
+        }}
+      />
 
       {/* Modal: Crear / Editar Destino del Itinerario */}
       <CreateDestinationModal

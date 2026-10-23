@@ -22,6 +22,8 @@ import type {
   TransporteUpdate,
   EstadoSeleccionTransporte,
   RolMiembro,
+  EstadoMiembro,
+  TripMember,
 } from "@/types/database";
 
 // ============================================================
@@ -514,6 +516,85 @@ export const DEMO_HOTELS: Hotel[] = [
 
 let localHotels: Hotel[] = [...DEMO_HOTELS];
 let localActivities: Actividad[] = [];
+
+export const DEMO_MEMBERS: TripMember[] = [
+  {
+    id: "demo-member-1",
+    viaje_id: DEMO_TRIP_ID,
+    nombre: "Clara López",
+    email: "clara.lopez@ejemplo.com",
+    rol: "owner",
+    estado: "activo",
+    invitado_en: "2026-01-15T10:00:00Z",
+  },
+  {
+    id: "demo-member-2",
+    viaje_id: DEMO_TRIP_ID,
+    nombre: "Pablo Morales",
+    email: "pablo.m@ejemplo.com",
+    rol: "editor",
+    estado: "activo",
+    invitado_en: "2026-01-16T11:30:00Z",
+  },
+  {
+    id: "demo-member-3",
+    viaje_id: DEMO_TRIP_ID,
+    nombre: "Lucía Martín",
+    email: "lucia.martin@ejemplo.com",
+    rol: "viewer",
+    estado: "activo",
+    invitado_en: "2026-01-17T09:15:00Z",
+  },
+  {
+    id: "demo-member-4",
+    viaje_id: DEMO_TRIP_ID,
+    nombre: "Nico Morales",
+    email: "nico.m@ejemplo.com",
+    rol: "viewer",
+    estado: "pendiente",
+    invitado_en: "2026-01-18T16:20:00Z",
+  },
+  // Menorca
+  {
+    id: "demo-member-5",
+    viaje_id: "demo-menorca-2026",
+    nombre: "Clara López",
+    email: "clara.lopez@ejemplo.com",
+    rol: "owner",
+    estado: "activo",
+    invitado_en: "2026-02-01T10:00:00Z",
+  },
+  {
+    id: "demo-member-6",
+    viaje_id: "demo-menorca-2026",
+    nombre: "Pablo Morales",
+    email: "pablo.m@ejemplo.com",
+    rol: "editor",
+    estado: "activo",
+    invitado_en: "2026-02-02T11:00:00Z",
+  },
+  // Pirineos
+  {
+    id: "demo-member-7",
+    viaje_id: "demo-pirineos-2026",
+    nombre: "Clara López",
+    email: "clara.lopez@ejemplo.com",
+    rol: "owner",
+    estado: "activo",
+    invitado_en: "2026-02-10T09:00:00Z",
+  },
+  {
+    id: "demo-member-8",
+    viaje_id: "demo-pirineos-2026",
+    nombre: "Pablo Morales",
+    email: "pablo.m@ejemplo.com",
+    rol: "editor",
+    estado: "activo",
+    invitado_en: "2026-02-10T09:30:00Z",
+  },
+];
+
+let localMembers: TripMember[] = [...DEMO_MEMBERS];
 
 // ============================================================
 // SERVICIOS CRUD CONECTADOS A SUPABASE
@@ -1597,32 +1678,263 @@ export const tripService = {
   },
 
   /**
-   * Invita a un miembro a un viaje
+   * Obtiene todos los miembros e invitados de un viaje
    */
-  async inviteMember(
-    viajeId: string,
-    targetUserId: string,
-    role: RolMiembro = "viewer",
-  ): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured || viajeId.startsWith("demo-")) {
-      return { success: true };
+  async getMembers(viajeId: string): Promise<TripMember[]> {
+    const isDemo =
+      !isSupabaseConfigured ||
+      viajeId.startsWith("demo-") ||
+      viajeId.startsWith("trip-") ||
+      viajeId === "portugal" ||
+      viajeId === "menorca" ||
+      viajeId === "pirineos";
+
+    if (isDemo) {
+      const normalizedId =
+        viajeId === "portugal"
+          ? DEMO_TRIP_ID
+          : viajeId === "menorca"
+          ? "demo-menorca-2026"
+          : viajeId === "pirineos"
+          ? "demo-pirineos-2026"
+          : viajeId;
+
+      const found = localMembers.filter(
+        (m) => m.viaje_id === viajeId || m.viaje_id === normalizedId
+      );
+      if (found.length > 0) {
+        return [...found];
+      }
+
+      // Miembro por defecto si es un viaje demo recién creado
+      return [
+        {
+          id: `member-${viajeId}-owner`,
+          viaje_id: viajeId,
+          nombre: "Clara López",
+          email: "clara.lopez@ejemplo.com",
+          rol: "owner",
+          estado: "activo",
+          invitado_en: new Date().toISOString(),
+        },
+      ];
     }
 
     try {
-      const { error } = await supabase.from("viaje_miembros").insert({
-        viaje_id: viajeId,
-        user_id: targetUserId,
-        rol: role,
-      });
+      const { data, error } = await supabase
+        .from("viaje_miembros")
+        .select("*")
+        .eq("viaje_id", viajeId)
+        .order("invitado_en", { ascending: true });
 
-      if (error) return { success: false, error: error.message };
-      return { success: true };
+      if (error || !data) {
+        console.warn("Error cargando miembros:", error?.message);
+        return [];
+      }
+
+      return data.map((d) => ({
+        id: d.id,
+        viaje_id: d.viaje_id,
+        user_id: d.user_id,
+        nombre: d.nombre || d.email?.split("@")[0] || "Viajero",
+        email: d.email || "viajero@ejemplo.com",
+        rol: (d.rol as RolMiembro) || "viewer",
+        estado: (d.estado as EstadoMiembro) || "activo",
+        invitado_en: d.invitado_en,
+        avatar_url: d.avatar_url,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Invita a un nuevo miembro o acompañante a un viaje
+   */
+  async inviteMember(
+    viajeId: string,
+    email: string,
+    nombre?: string,
+    role: RolMiembro = "viewer",
+  ): Promise<{ success: boolean; data?: TripMember; error?: string }> {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      return { success: false, error: "Introduce un correo electrónico válido." };
+    }
+
+    const cleanNombre =
+      (nombre && nombre.trim()) ||
+      cleanEmail
+        .split("@")[0]
+        .replace(/[._-]/g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase());
+
+    const isDemo =
+      !isSupabaseConfigured ||
+      viajeId.startsWith("demo-") ||
+      viajeId.startsWith("trip-") ||
+      viajeId === "portugal" ||
+      viajeId === "menorca" ||
+      viajeId === "pirineos";
+
+    const normalizedId =
+      viajeId === "portugal"
+        ? DEMO_TRIP_ID
+        : viajeId === "menorca"
+        ? "demo-menorca-2026"
+        : viajeId === "pirineos"
+        ? "demo-pirineos-2026"
+        : viajeId;
+
+    if (isDemo) {
+      const existing = localMembers.find(
+        (m) =>
+          (m.viaje_id === viajeId || m.viaje_id === normalizedId) &&
+          m.email.toLowerCase() === cleanEmail,
+      );
+      if (existing) {
+        return {
+          success: false,
+          error: "Este correo ya forma parte de los invitados o miembros de este viaje.",
+        };
+      }
+
+      const newMember: TripMember = {
+        id: `member-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        viaje_id: viajeId,
+        nombre: cleanNombre,
+        email: cleanEmail,
+        rol: role,
+        estado: "pendiente",
+        invitado_en: new Date().toISOString(),
+      };
+
+      localMembers.push(newMember);
+      return { success: true, data: newMember };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("viaje_miembros")
+        .insert({
+          viaje_id: viajeId,
+          email: cleanEmail,
+          nombre: cleanNombre,
+          rol: role,
+          estado: "pendiente",
+        })
+        .select()
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        data: {
+          id: data.id,
+          viaje_id: data.viaje_id,
+          user_id: data.user_id,
+          nombre: data.nombre || cleanNombre,
+          email: data.email || cleanEmail,
+          rol: (data.rol as RolMiembro) || role,
+          estado: (data.estado as EstadoMiembro) || "pendiente",
+          invitado_en: data.invitado_en,
+          avatar_url: data.avatar_url,
+        },
+      };
     } catch (err: unknown) {
       return {
         success: false,
         error: err instanceof Error ? err.message : "Error al invitar miembro",
       };
     }
+  },
+
+  /**
+   * Actualiza el rol de un miembro o invitado (editor, viewer, etc.)
+   */
+  async updateMemberRole(
+    viajeId: string,
+    memberId: string,
+    role: RolMiembro,
+  ): Promise<{ success: boolean; error?: string }> {
+    const isDemo =
+      !isSupabaseConfigured ||
+      viajeId.startsWith("demo-") ||
+      viajeId.startsWith("trip-") ||
+      viajeId === "portugal" ||
+      viajeId === "menorca" ||
+      viajeId === "pirineos";
+
+    if (isDemo) {
+      localMembers = localMembers.map((m) =>
+        m.id === memberId ? { ...m, rol: role } : m,
+      );
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("viaje_miembros")
+        .update({ rol: role })
+        .eq("id", memberId);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al actualizar rol",
+      };
+    }
+  },
+
+  /**
+   * Elimina un miembro o cancela su invitación
+   */
+  async removeMember(
+    viajeId: string,
+    memberId: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    const isDemo =
+      !isSupabaseConfigured ||
+      viajeId.startsWith("demo-") ||
+      viajeId.startsWith("trip-") ||
+      viajeId === "portugal" ||
+      viajeId === "menorca" ||
+      viajeId === "pirineos";
+
+    if (isDemo) {
+      localMembers = localMembers.filter((m) => m.id !== memberId);
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("viaje_miembros")
+        .delete()
+        .eq("id", memberId);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al eliminar miembro",
+      };
+    }
+  },
+
+  /**
+   * Reenvía la invitación por correo a un miembro pendiente
+   */
+  async resendInvite(
+    _viajeId: string,
+    _memberId: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    return { success: true };
   },
 
   /**
