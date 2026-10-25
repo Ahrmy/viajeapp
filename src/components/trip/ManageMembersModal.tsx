@@ -530,7 +530,7 @@ export function ManageMembersModal({
                           >
                             <path d="M12 2l3 7h7l-5.5 4.5 2 7.5-6.5-4.5-6.5 4.5 2-7.5-5.5-4.5h7z" />
                           </svg>
-                          <span>Organizador</span>
+                          <span>Administrador</span>
                         </div>
                       ) : (
                         <select

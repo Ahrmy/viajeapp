@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react"
 import { Sidebar, type TripOption } from "./Sidebar"
 import { TripHero } from "./TripHero"
+import { Logo } from "@/components/auth/Logo"
+import { WelcomeScreen } from "./WelcomeScreen"
 import {
   EditHeroModal,
   type HeroData,
@@ -22,8 +24,6 @@ import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
 import {
   tripService,
-  DEMO_CITIES,
-  DEMO_TASKS,
   DEFAULT_COVER_IMAGE,
   DEFAULT_DESTINATION_IMAGE,
 } from "@/lib/tripService"
@@ -154,42 +154,27 @@ export function TripOverview({
   onNavigateToAuth,
 }: TripOverviewProps) {
   const [activeSection, setActiveSection] = useState("general")
-  const [tripsList, setTripsList] = useState<TripOption[]>([
-    { id: "portugal", name: "Portugal en familia", dates: "6–13 nov 2026" },
-    { id: "menorca", name: "Un verano en Menorca", dates: "12–19 jul 2027" },
-    { id: "pirineos", name: "Escapada a los Pirineos", dates: "2–5 dic 2026" },
-  ])
-  const [currentTrip, setCurrentTrip] = useState<TripOption>(tripsList[0])
+  const [tripsList, setTripsList] = useState<TripOption[]>([])
+  const [currentTrip, setCurrentTrip] = useState<TripOption | null>(null)
+  const [isLoadingTrips, setIsLoadingTrips] = useState(true)
+  const [createTripTemplateData, setCreateTripTemplateData] = useState<Partial<HeroData> | undefined>(undefined)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isInviteOpen, setIsInviteOpen] = useState(false)
   const [isAddDestinationOpen, setIsAddDestinationOpen] = useState(false)
   const [isEditHeroModalOpen, setIsEditHeroModalOpen] = useState(false)
   const [isCreateTripModalOpen, setIsCreateTripModalOpen] = useState(false)
   const [isEditingTitleInline, setIsEditingTitleInline] = useState(false)
-  const [inlineTitleValue, setInlineTitleValue] = useState(tripsList[0].name)
+  const [inlineTitleValue, setInlineTitleValue] = useState("")
   const [membersList, setMembersList] = useState<TripMember[]>([])
   const [editingCityData, setEditingCityData] = useState<Destination | null>(null)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
-  const [selectedCityName, setSelectedCityName] = useState<string>("Lisboa")
+  const [selectedCityName, setSelectedCityName] = useState<string>("")
 
   // Database synced state
-  const [destinationsList, setDestinationsList] = useState<Destination[]>(() =>
-    DEMO_CITIES.filter((c) => c.viaje_id === tripsList[0]?.id).map(
-      mapCityToDestination
-    )
-  )
-  const [tasksList, setTasksList] = useState<TaskItem[]>(() => {
-    const initialTripId = tripsList[0]?.id
-    const cityMap: Record<string, string> = {}
-    DEMO_CITIES.filter((c) => c.viaje_id === initialTripId).forEach((c) => {
-      cityMap[c.id] = c.nombre
-    })
-    return DEMO_TASKS.filter((t) => t.viaje_id === initialTripId).map((t) =>
-      mapDbTaskToTaskItem(t, cityMap)
-    )
-  })
+  const [destinationsList, setDestinationsList] = useState<Destination[]>([])
+  const [tasksList, setTasksList] = useState<TaskItem[]>([])
   const [budgetTotal, setBudgetTotal] = useState<number>(3200)
-  const [budgetSpent, setBudgetSpent] = useState<number>(1840)
+  const [budgetSpent, setBudgetSpent] = useState<number>(0)
   const [showSeedBanner, setShowSeedBanner] = useState(false)
   const [isSeeding, setIsSeeding] = useState(false)
 
@@ -231,15 +216,11 @@ export function TripOverview({
 
   // 1. Cargar viajes desde Supabase si el usuario está autenticado
   const loadTrips = useCallback(async () => {
+    setIsLoadingTrips(true)
     const res = await tripService.getTrips(user?.id)
 
-    if (user && res.data.length === 0) {
-      setShowSeedBanner(true)
-    } else {
-      setShowSeedBanner(false)
-    }
-
     if (res.data && res.data.length > 0) {
+      setShowSeedBanner(false)
       const options: TripOption[] = res.data.map((v) => ({
         id: v.id,
         name: v.nombre,
@@ -263,14 +244,29 @@ export function TripOverview({
 
       setTripsList(options)
       setTripHeroes((prev) => ({ ...prev, ...heroesMap }))
-      setCurrentTrip(options[0])
-      setInlineTitleValue(options[0].name)
+      setCurrentTrip((prev) => {
+        if (prev && options.some((o) => o.id === prev.id)) {
+          return options.find((o) => o.id === prev.id)!
+        }
+        return options[0]
+      })
+      setInlineTitleValue((prev) => {
+        const matching = options.find((o) => o.name === prev)
+        return matching ? matching.name : options[0].name
+      })
       setSelectedCityId(null)
-      setActiveSection("general")
       if (res.data[0].presupuesto_total) {
         setBudgetTotal(Number(res.data[0].presupuesto_total))
       }
+    } else {
+      setShowSeedBanner(false)
+      setTripsList([])
+      setCurrentTrip(null)
+      setInlineTitleValue("")
+      setDestinationsList([])
+      setTasksList([])
     }
+    setIsLoadingTrips(false)
   }, [user])
 
   useEffect(() => {
@@ -327,15 +323,20 @@ export function TripOverview({
     })
 
     // Cargar miembros y viajeros del viaje activo
-    tripService.getMembers(currentTrip.id).then((members) => {
-      if (!isMounted) return
-      setMembersList(members || [])
-    })
+    tripService
+      .getMembers(currentTrip.id, user?.id, {
+        name: userName,
+        email: user?.email,
+      })
+      .then((members) => {
+        if (!isMounted) return
+        setMembersList(members || [])
+      })
 
     return () => {
       isMounted = false
     }
-  }, [currentTrip.id])
+  }, [currentTrip?.id, user?.id, userName, user?.email])
 
   // Sembrar datos de ejemplo en Supabase con 1 clic
   const handleSeedInitialTrip = async () => {
@@ -344,7 +345,10 @@ export function TripOverview({
       return
     }
     setIsSeeding(true)
-    const result = await tripService.seedInitialTrip(user.id)
+    const result = await tripService.seedInitialTrip(user.id, {
+      name: userName,
+      email: user.email,
+    })
     setIsSeeding(false)
     if (result.data) {
       await loadTrips()
@@ -353,10 +357,11 @@ export function TripOverview({
   }
 
   const handleSaveHero = async (data: HeroData) => {
+    if (!currentTrip) return
     if (data.tripName && data.tripName.trim()) {
       const newName = data.tripName.trim()
       const newDates = data.dates?.trim() || currentTrip.dates
-      setCurrentTrip((prev) => ({ ...prev, name: newName, dates: newDates }))
+      setCurrentTrip((prev) => (prev ? { ...prev, name: newName, dates: newDates } : null))
       setInlineTitleValue(newName)
       setTripsList((prev) =>
         prev.map((t) =>
@@ -401,18 +406,24 @@ export function TripOverview({
     let createdId = `trip-${Date.now()}`
 
     if (user?.id) {
-      const res = await tripService.createTrip({
-        nombre: newName,
-        creado_por: user.id,
-        fecha_inicio: data.startDate || null,
-        fecha_fin: data.endDate || null,
-        num_viajeros: data.travelersCount || 1,
-        titulo_cabecero: data.title || "Una nueva historia por escribir.",
-        subtitulo_cabecero: data.subtitle || "Explorando juntos nuevos rincones.",
-        foto_portada: data.image || DEFAULT_COVER_IMAGE,
-        etiqueta_ubicacion: data.locationBadge || newName,
-        presupuesto_total: 2500,
-      })
+      const res = await tripService.createTrip(
+        {
+          nombre: newName,
+          creado_por: user.id,
+          fecha_inicio: data.startDate || null,
+          fecha_fin: data.endDate || null,
+          num_viajeros: data.travelersCount || 1,
+          titulo_cabecero: data.title || "Una nueva historia por escribir.",
+          subtitulo_cabecero: data.subtitle || "Explorando juntos nuevos rincones.",
+          foto_portada: data.image || DEFAULT_COVER_IMAGE,
+          etiqueta_ubicacion: data.locationBadge || newName,
+          presupuesto_total: 2500,
+        },
+        {
+          name: userName,
+          email: user.email,
+        }
+      )
       if (res.error || !res.data?.id) {
         console.error("No se pudo guardar el viaje en Supabase:", res.error)
         alert(`No se pudo guardar el viaje: ${res.error ?? "error desconocido"}`)
@@ -426,6 +437,19 @@ export function TripOverview({
       name: newName,
       dates: newDates,
     }
+
+    // El creador es automáticamente el Administrador del nuevo viaje
+    const ownerMember: TripMember = {
+      id: `member-${createdId}-owner`,
+      viaje_id: createdId,
+      user_id: user?.id,
+      nombre: userName,
+      email: user?.email || "",
+      rol: "owner",
+      estado: "activo",
+      invitado_en: new Date().toISOString(),
+    }
+    setMembersList([ownerMember])
 
     setTripHeroes((prev) => ({
       ...prev,
@@ -449,9 +473,11 @@ export function TripOverview({
     setSelectedCityId(null)
     setActiveSection("general")
     setIsCreateTripModalOpen(false)
+    setCreateTripTemplateData(undefined)
   }
 
   const handleDeleteTrip = async () => {
+    if (!currentTrip) return
     const tripId = currentTrip.id
     const res = await tripService.deleteTrip(tripId)
     if (!res.success) {
@@ -472,6 +498,9 @@ export function TripOverview({
     if (nextTrip) {
       setCurrentTrip(nextTrip)
       setInlineTitleValue(nextTrip.name)
+    } else {
+      setCurrentTrip(null)
+      setInlineTitleValue("")
     }
     setSelectedCityId(null)
     setActiveSection("general")
@@ -526,6 +555,7 @@ export function TripOverview({
       setIsAddDestinationOpen(false)
     } else {
       // Crear nuevo destino
+      if (!currentTrip?.id) return
       const res = await tripService.createCity({
         viaje_id: currentTrip.id,
         nombre: data.name,
@@ -549,6 +579,49 @@ export function TripOverview({
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark")
+  }
+
+  // Pantalla de carga mientras se consultan los viajes
+  if (isLoadingTrips) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#FAF9F5] dark:bg-[#121714]">
+        <div className="flex flex-col items-center gap-3">
+          <Logo />
+          <div className="w-5 h-5 border-2 border-[#245544] border-t-transparent dark:border-emerald-400 dark:border-t-transparent rounded-full animate-spin mt-2" />
+        </div>
+      </div>
+    )
+  }
+
+  // Pantalla de bienvenida si no tienes ningún viaje creado
+  if (!currentTrip || tripsList.length === 0) {
+    return (
+      <>
+        <WelcomeScreen
+          userName={userName}
+          userEmail={user?.email}
+          onCreateTrip={(templateData) => {
+            setCreateTripTemplateData(templateData)
+            setIsCreateTripModalOpen(true)
+          }}
+          onSeedDemoTrip={handleSeedInitialTrip}
+          isSeeding={isSeeding}
+          onSignOut={onSignOut}
+        />
+
+        {/* Modal: Crear Nuevo Viaje */}
+        <EditHeroModal
+          mode="create"
+          isOpen={isCreateTripModalOpen}
+          currentData={createTripTemplateData}
+          onClose={() => {
+            setIsCreateTripModalOpen(false)
+            setCreateTripTemplateData(undefined)
+          }}
+          onSave={handleCreateTrip}
+        />
+      </>
+    )
   }
 
   return (
@@ -636,7 +709,10 @@ export function TripOverview({
           onSignOut={onSignOut}
           trips={tripsList}
           onEditCurrentTrip={() => setIsEditHeroModalOpen(true)}
-          onNewTrip={() => setIsCreateTripModalOpen(true)}
+          onNewTrip={() => {
+            setCreateTripTemplateData(undefined)
+            setIsCreateTripModalOpen(true)
+          }}
           onDeleteCurrentTrip={handleDeleteTrip}
         />
       </div>
@@ -910,7 +986,7 @@ export function TripOverview({
                       e.preventDefault()
                       if (inlineTitleValue.trim()) {
                         const newName = inlineTitleValue.trim()
-                        setCurrentTrip((prev) => ({ ...prev, name: newName }))
+                        setCurrentTrip((prev) => (prev ? { ...prev, name: newName } : null))
                         setTripsList((prev) =>
                           prev.map((t) =>
                             t.id === currentTrip.id ? { ...t, name: newName } : t
@@ -1004,7 +1080,7 @@ export function TripOverview({
                     <Avatar
                       key={m.id || idx}
                       className="h-[34px] w-[34px] border-2 border-[#FAF9F5] dark:border-stone-900 shadow-2xs transition-transform group-hover:scale-105"
-                      title={`${m.nombre} (${m.rol === "owner" ? "Organizador" : m.rol === "editor" ? "Editor" : "Lector"})${m.estado === "pendiente" ? " - Invitación pendiente" : ""}`}
+                      title={`${m.nombre} (${m.rol === "owner" ? "Administrador" : m.rol === "editor" ? "Editor" : "Lector"})${m.estado === "pendiente" ? " - Invitación pendiente" : ""}`}
                     >
                       <AvatarFallback
                         className={`text-[11px] font-semibold ${
@@ -1235,7 +1311,7 @@ export function TripOverview({
                 [currentTrip.id]: {
                   ...currentHero,
                   travelersCount: Math.max(
-                    currentHero.travelersCount,
+                    currentHero.travelersCount || 1,
                     membersList.length + 1
                   ),
                 },
@@ -1287,7 +1363,11 @@ export function TripOverview({
       <EditHeroModal
         mode="create"
         isOpen={isCreateTripModalOpen}
-        onClose={() => setIsCreateTripModalOpen(false)}
+        currentData={createTripTemplateData}
+        onClose={() => {
+          setIsCreateTripModalOpen(false)
+          setCreateTripTemplateData(undefined)
+        }}
         onSave={handleCreateTrip}
       />
     </div>

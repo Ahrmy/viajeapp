@@ -260,10 +260,13 @@ CREATE POLICY "editar viaje si soy owner o editor"
 DROP POLICY IF EXISTS "borrar viaje solo owner" ON viajes;
 CREATE POLICY "borrar viaje solo owner"
   ON viajes FOR DELETE
-  USING (EXISTS (
-    SELECT 1 FROM viaje_miembros m
-    WHERE m.viaje_id = viajes.id AND m.user_id = auth.uid() AND m.rol = 'owner'
-  ));
+  USING (
+    creado_por = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM viaje_miembros m
+      WHERE m.viaje_id = viajes.id AND m.user_id = auth.uid() AND m.rol = 'owner'
+    )
+  );
 
 -- Miembros
 DROP POLICY IF EXISTS "ver miembros del viaje" ON viaje_miembros;
@@ -274,20 +277,36 @@ CREATE POLICY "ver miembros del viaje"
 DROP POLICY IF EXISTS "invitar miembros (solo owner)" ON viaje_miembros;
 CREATE POLICY "invitar miembros (solo owner)"
   ON viaje_miembros FOR INSERT
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM viaje_miembros m
-    WHERE m.viaje_id = viaje_miembros.viaje_id
-      AND m.user_id = auth.uid() AND m.rol = 'owner'
-  ));
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM viaje_miembros m
+      WHERE m.viaje_id = viaje_miembros.viaje_id
+        AND m.user_id = auth.uid() AND m.rol = 'owner'
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM viajes v
+      WHERE v.id = viaje_miembros.viaje_id
+        AND v.creado_por = auth.uid()
+    )
+  );
 
 DROP POLICY IF EXISTS "actualizar rol (solo owner)" ON viaje_miembros;
 CREATE POLICY "actualizar rol (solo owner)"
   ON viaje_miembros FOR UPDATE
-  USING (EXISTS (
-    SELECT 1 FROM viaje_miembros m
-    WHERE m.viaje_id = viaje_miembros.viaje_id
-      AND m.user_id = auth.uid() AND m.rol = 'owner'
-  ));
+  USING (
+    EXISTS (
+      SELECT 1 FROM viaje_miembros m
+      WHERE m.viaje_id = viaje_miembros.viaje_id
+        AND m.user_id = auth.uid() AND m.rol = 'owner'
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM viajes v
+      WHERE v.id = viaje_miembros.viaje_id
+        AND v.creado_por = auth.uid()
+    )
+  );
 
 DROP POLICY IF EXISTS "salir del viaje (auto-eliminación) o owner" ON viaje_miembros;
 CREATE POLICY "salir del viaje (auto-eliminación) o owner"
@@ -423,17 +442,30 @@ GROUP BY v.id, v.nombre, v.presupuesto_total;
 
 -- ---------- 8. Triggers automáticos ----------
 
--- Owner automático al crear viaje
+-- Administrador (owner) automático al crear viaje
 CREATE OR REPLACE FUNCTION asignar_owner_viaje()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_email text;
+  v_nombre text;
 BEGIN
-  INSERT INTO viaje_miembros (viaje_id, user_id, rol)
-  VALUES (NEW.id, NEW.creado_por, 'owner')
-  ON CONFLICT DO NOTHING;
+  SELECT email, coalesce(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', split_part(email, '@', 1))
+  INTO v_email, v_nombre
+  FROM auth.users
+  WHERE id = NEW.creado_por;
+
+  INSERT INTO viaje_miembros (viaje_id, user_id, email, nombre, rol, estado)
+  VALUES (NEW.id, NEW.creado_por, v_email, coalesce(v_nombre, 'Administrador'), 'owner', 'activo')
+  ON CONFLICT (viaje_id, user_id)
+  DO UPDATE SET
+    rol = 'owner',
+    email = coalesce(EXCLUDED.email, viaje_miembros.email),
+    nombre = coalesce(EXCLUDED.nombre, viaje_miembros.nombre);
+
   RETURN NEW;
 END;
 $$;

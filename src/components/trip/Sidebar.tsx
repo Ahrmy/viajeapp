@@ -17,7 +17,7 @@ const TRIPS: TripOption[] = [
 interface SidebarProps {
   activeSection: string
   onSectionChange: (section: string) => void
-  currentTrip: TripOption
+  currentTrip?: TripOption
   onTripChange: (trip: TripOption) => void
   onNewTrip?: () => void
   onEditCurrentTrip?: () => void
@@ -43,11 +43,10 @@ export function Sidebar({
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const tripName = currentTrip?.name || "Sin viajes"
   const shortTripName =
-    currentTrip.name.length > 11
-      ? `${currentTrip.name.slice(0, 11).trimEnd()}...`
-      : currentTrip.name
-  const canDelete = trips.length > 1
+    tripName.length > 11 ? `${tripName.slice(0, 11).trimEnd()}...` : tripName
+  const canDelete = trips.length >= 1
 
   const closeTripMenu = () => {
     setIsTripMenuOpen(false)
@@ -192,7 +191,7 @@ export function Sidebar({
                   <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
                 </svg>
                 <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100 truncate">
-                  {currentTrip.name}
+                  {currentTrip?.name || "Sin viajes"}
                 </span>
               </div>
 
@@ -228,7 +227,7 @@ export function Sidebar({
                       closeTripMenu()
                     }}
                     className={`flex items-center justify-between p-2 rounded-[6px] text-left transition-colors cursor-pointer ${
-                      trip.id === currentTrip.id
+                      trip.id === currentTrip?.id
                         ? "bg-[#E8EFEA] dark:bg-stone-800 text-[#245544] dark:text-[#A7F3D0]"
                         : "hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200"
                     }`}
@@ -239,7 +238,7 @@ export function Sidebar({
                         {trip.dates}
                       </span>
                     </div>
-                    {trip.id === currentTrip.id && (
+                    {trip.id === currentTrip?.id && (
                       <svg
                         width="14"
                         height="14"
@@ -269,7 +268,7 @@ export function Sidebar({
                       closeTripMenu()
                       onEditCurrentTrip()
                     }}
-                    title={`Editar "${currentTrip.name}"`}
+                    title={currentTrip ? `Editar "${currentTrip.name}"` : "Editar viaje"}
                     className="flex items-center gap-2 p-2 rounded-[6px] text-xs font-medium text-[#203D34] hover:bg-[#E8EFEA] dark:text-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer whitespace-nowrap overflow-hidden"
                   >
                     <svg
@@ -328,8 +327,10 @@ export function Sidebar({
                       onClick={() => setIsConfirmingDelete(true)}
                       title={
                         canDelete
-                          ? `Eliminar "${currentTrip.name}"`
-                          : "No puedes eliminar tu único viaje"
+                          ? currentTrip
+                            ? `Eliminar "${currentTrip.name}"`
+                            : "Eliminar viaje"
+                          : "No hay viajes para eliminar"
                       }
                       className="flex items-center gap-2 p-2 rounded-[6px] text-xs font-medium text-[#B23A26] hover:bg-[#FBEDEA] dark:text-red-300 dark:hover:bg-red-950/40 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors cursor-pointer whitespace-nowrap overflow-hidden"
                     >
@@ -443,7 +444,15 @@ export function Sidebar({
           <div className="flex items-center gap-2.5">
             <Avatar className="h-[38px] w-[38px] border-2 border-white dark:border-stone-700 shadow-2xs">
               <AvatarFallback className="bg-[#E8EFEA] text-[#245544] font-medium text-xs">
-                CL
+                {userName
+                  ? userName
+                      .trim()
+                      .split(/\s+/)
+                      .map((p) => p[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()
+                  : "TR"}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col">

@@ -692,10 +692,11 @@ export const tripService = {
   },
 
   /**
-   * Crea un nuevo viaje en Supabase
+   * Crea un nuevo viaje en Supabase y asigna al usuario creador como Administrador (owner)
    */
   async createTrip(
     trip: ViajeInsert,
+    creatorInfo?: { name?: string; email?: string }
   ): Promise<{ data: Viaje | null; error?: string }> {
     if (!isSupabaseConfigured) {
       const demoNew: Viaje = {
@@ -712,6 +713,20 @@ export const tripService = {
         creado_por: trip.creado_por || "demo-user",
         creado_en: new Date().toISOString(),
       };
+
+      // Asignar al creador del viaje como Administrador (owner)
+      const creatorMember: TripMember = {
+        id: `member-${demoNew.id}-owner`,
+        viaje_id: demoNew.id,
+        user_id: trip.creado_por,
+        nombre: creatorInfo?.name || "Administrador",
+        email: creatorInfo?.email || "usuario@ejemplo.com",
+        rol: "owner",
+        estado: "activo",
+        invitado_en: new Date().toISOString(),
+      };
+      localMembers.push(creatorMember);
+
       return { data: demoNew };
     }
 
@@ -725,6 +740,25 @@ export const tripService = {
       if (error) {
         console.error("Error creando viaje:", error.message);
         return { data: null, error: error.message };
+      }
+
+      // El usuario creador queda registrado como Administrador (owner) del viaje
+      if (data && trip.creado_por) {
+        try {
+          await supabase.from("viaje_miembros").upsert(
+            {
+              viaje_id: data.id,
+              user_id: trip.creado_por,
+              nombre: creatorInfo?.name || "Administrador",
+              email: creatorInfo?.email || "",
+              rol: "owner",
+              estado: "activo",
+            },
+            { onConflict: "viaje_id,user_id" }
+          );
+        } catch (memberErr) {
+          console.warn("Aviso al registrar al creador como Administrador:", memberErr);
+        }
       }
 
       return { data };
@@ -1679,8 +1713,13 @@ export const tripService = {
 
   /**
    * Obtiene todos los miembros e invitados de un viaje
+   * Garantiza que el creador del viaje siempre figure como Administrador (owner)
    */
-  async getMembers(viajeId: string): Promise<TripMember[]> {
+  async getMembers(
+    viajeId: string,
+    currentUserId?: string,
+    currentUserInfo?: { name?: string; email?: string }
+  ): Promise<TripMember[]> {
     const isDemo =
       !isSupabaseConfigured ||
       viajeId.startsWith("demo-") ||
@@ -1706,13 +1745,14 @@ export const tripService = {
         return [...found];
       }
 
-      // Miembro por defecto si es un viaje demo recién creado
+      // Administrador por defecto si es un viaje demo recién creado
       return [
         {
           id: `member-${viajeId}-owner`,
           viaje_id: viajeId,
-          nombre: "Clara López",
-          email: "clara.lopez@ejemplo.com",
+          user_id: currentUserId,
+          nombre: currentUserInfo?.name || "Administrador",
+          email: currentUserInfo?.email || "usuario@ejemplo.com",
           rol: "owner",
           estado: "activo",
           invitado_en: new Date().toISOString(),
@@ -1727,22 +1767,78 @@ export const tripService = {
         .eq("viaje_id", viajeId)
         .order("invitado_en", { ascending: true });
 
-      if (error || !data) {
-        console.warn("Error cargando miembros:", error?.message);
-        return [];
+      let members: TripMember[] = [];
+      if (!error && data) {
+        members = data.map((d) => ({
+          id: d.id,
+          viaje_id: d.viaje_id,
+          user_id: d.user_id,
+          nombre:
+            d.nombre ||
+            (d.user_id === currentUserId && currentUserInfo?.name
+              ? currentUserInfo.name
+              : d.email?.split("@")[0] || "Viajero"),
+          email:
+            d.email ||
+            (d.user_id === currentUserId && currentUserInfo?.email
+              ? currentUserInfo.email
+              : "viajero@ejemplo.com"),
+          rol: (d.rol as RolMiembro) || "viewer",
+          estado: (d.estado as EstadoMiembro) || "activo",
+          invitado_en: d.invitado_en,
+          avatar_url: d.avatar_url,
+        }));
       }
 
-      return data.map((d) => ({
-        id: d.id,
-        viaje_id: d.viaje_id,
-        user_id: d.user_id,
-        nombre: d.nombre || d.email?.split("@")[0] || "Viajero",
-        email: d.email || "viajero@ejemplo.com",
-        rol: (d.rol as RolMiembro) || "viewer",
-        estado: (d.estado as EstadoMiembro) || "activo",
-        invitado_en: d.invitado_en,
-        avatar_url: d.avatar_url,
-      }));
+      // Si no hay un Administrador (owner) registrado aún, buscamos al creador del viaje
+      const hasOwner = members.some((m) => m.rol === "owner");
+      if (!hasOwner) {
+        const { data: tripData } = await supabase
+          .from("viajes")
+          .select("creado_por")
+          .eq("id", viajeId)
+          .maybeSingle();
+
+        const creatorId = tripData?.creado_por || currentUserId;
+        if (creatorId) {
+          const isCurrent = creatorId === currentUserId;
+          const ownerMember: TripMember = {
+            id: `member-${viajeId}-owner`,
+            viaje_id: viajeId,
+            user_id: creatorId,
+            nombre:
+              isCurrent && currentUserInfo?.name
+                ? currentUserInfo.name
+                : "Administrador",
+            email:
+              isCurrent && currentUserInfo?.email
+                ? currentUserInfo.email
+                : "",
+            rol: "owner",
+            estado: "activo",
+            invitado_en: new Date().toISOString(),
+          };
+
+          // Persistir en segundo plano para que quede grabado en viaje_miembros
+          Promise.resolve(
+            supabase.from("viaje_miembros").upsert(
+              {
+                viaje_id: viajeId,
+                user_id: creatorId,
+                nombre: ownerMember.nombre,
+                email: ownerMember.email,
+                rol: "owner",
+                estado: "activo",
+              },
+              { onConflict: "viaje_id,user_id" }
+            )
+          ).catch(() => {});
+
+          members.unshift(ownerMember);
+        }
+      }
+
+      return members;
     } catch {
       return [];
     }
@@ -1943,6 +2039,7 @@ export const tripService = {
    */
   async seedInitialTrip(
     userId: string,
+    creatorInfo?: { name?: string; email?: string }
   ): Promise<{ data: Viaje | null; error?: string }> {
     if (!isSupabaseConfigured) {
       return { data: DEMO_TRIPS[0] };
@@ -1975,6 +2072,23 @@ export const tripService = {
       }
 
       const tripId = newTrip.id;
+
+      // Asignar al creador como Administrador (owner) del viaje
+      try {
+        await supabase.from("viaje_miembros").upsert(
+          {
+            viaje_id: tripId,
+            user_id: userId,
+            nombre: creatorInfo?.name || "Administrador",
+            email: creatorInfo?.email || "",
+            rol: "owner",
+            estado: "activo",
+          },
+          { onConflict: "viaje_id,user_id" }
+        );
+      } catch (mErr) {
+        console.warn("Aviso al vincular Administrador en seedInitialTrip:", mErr);
+      }
 
       // 2. Insertar las 3 ciudades
       const { data: cities, error: citiesErr } = await supabase

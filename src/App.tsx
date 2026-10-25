@@ -8,8 +8,6 @@ import type { User } from "@supabase/supabase-js"
 export function App() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  // Default to overview so user immediately sees the new "Travesía · Vista general" screen
-  const [activeView, setActiveView] = useState<"overview" | "auth">("overview")
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -36,9 +34,6 @@ export function App() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const newUser = session?.user ?? null
       setUser(newUser)
-      if (newUser) {
-        setActiveView("overview")
-      }
       setLoading(false)
     })
 
@@ -58,58 +53,26 @@ export function App() {
     )
   }
 
+  // Si no está registrado o no ha iniciado sesión, no puede acceder a vista general
+  if (!user) {
+    return <LoginScreen />
+  }
+
   const userName =
-    user?.user_metadata?.name ||
-    user?.user_metadata?.full_name ||
-    user?.email?.split("@")[0] ||
-    "Clara López"
+    user.user_metadata?.name ||
+    user.user_metadata?.full_name ||
+    user.email?.split("@")[0] ||
+    "Viajero"
 
   return (
-    <div className="relative min-h-screen">
-      {/* Floating View Switcher Pill so the user can easily switch between Vista general and Login/Register */}
-      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 p-1 rounded-full bg-white/92 dark:bg-stone-900/92 backdrop-blur-md border border-[#CCD2CA] dark:border-stone-700 shadow-lg text-xs">
-        <button
-          type="button"
-          onClick={() => setActiveView("overview")}
-          className={`px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer ${
-            activeView === "overview"
-              ? "bg-[#245544] text-white shadow-xs"
-              : "text-[#4D5B54] dark:text-stone-300 hover:text-[#203D34] dark:hover:text-white"
-          }`}
-        >
-          Vista general
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveView("auth")}
-          className={`px-3 py-1.5 rounded-full font-medium transition-colors cursor-pointer ${
-            activeView === "auth"
-              ? "bg-[#245544] text-white shadow-xs"
-              : "text-[#4D5B54] dark:text-stone-300 hover:text-[#203D34] dark:hover:text-white"
-          }`}
-        >
-          {user ? "Mi Cuenta" : "Login / Registro"}
-        </button>
-      </div>
-
-      {activeView === "overview" ? (
-        <TripOverview
-          user={user}
-          userName={userName}
-          onNavigateToAuth={() => setActiveView("auth")}
-          onSignOut={
-            user
-              ? () => {
-                  supabase.auth.signOut()
-                  setUser(null)
-                }
-              : undefined
-          }
-        />
-      ) : (
-        <LoginScreen />
-      )}
-    </div>
+    <TripOverview
+      user={user}
+      userName={userName}
+      onSignOut={async () => {
+        await supabase.auth.signOut()
+        setUser(null)
+      }}
+    />
   )
 }
 
