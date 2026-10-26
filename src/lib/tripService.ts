@@ -656,13 +656,91 @@ export const tripService = {
     }
   },
   /**
+   * Reclama y asocia cualquier invitación pendiente que coincida con el email del usuario actual.
+   */
+  async claimPendingInvitations(
+    userId: string,
+    userEmail?: string,
+    userName?: string
+  ): Promise<number> {
+    if (!userEmail || !userEmail.includes("@")) return 0;
+    const cleanEmail = userEmail.trim().toLowerCase();
+
+    // 1. Reclamar en memoria para modo demo / local
+    let localCount = 0;
+    localMembers = localMembers.map((m) => {
+      if (
+        (m.email.toLowerCase() === cleanEmail || m.user_id === userId) &&
+        (m.estado === "pendiente" || !m.user_id)
+      ) {
+        localCount++;
+        return {
+          ...m,
+          user_id: userId,
+          nombre: userName || m.nombre,
+          estado: "activo",
+        };
+      }
+      return m;
+    });
+
+    if (!isSupabaseConfigured) {
+      return localCount;
+    }
+
+    // 2. Intentar llamar al procedimiento RPC 'asociar_invitaciones'
+    try {
+      const { data: rpcCount, error: rpcError } = await supabase.rpc(
+        "asociar_invitaciones"
+      );
+      if (!rpcError && typeof rpcCount === "number" && rpcCount > 0) {
+        return rpcCount;
+      }
+    } catch {
+      // Continuar con el fallback directo
+    }
+
+    // 3. Fallback directo: actualizar filas pendientes en viaje_miembros por email o user_id
+    try {
+      const { data, error } = await supabase
+        .from("viaje_miembros")
+        .update({
+          user_id: userId,
+          nombre: userName || undefined,
+          estado: "activo",
+        })
+        .or(`email.ilike.${cleanEmail},user_id.eq.${userId}`)
+        .select("id");
+
+      if (!error && data) {
+        return data.length;
+      }
+    } catch (err) {
+      console.warn("Aviso al vincular invitaciones en viaje_miembros:", err);
+    }
+
+    return 0;
+  },
+
+  /**
    * Obtiene todos los viajes del usuario actual desde Supabase.
+   * Asocia previamente cualquier invitación pendiente que coincida con el email del usuario.
    */
   async getTrips(
     userId?: string,
+    userEmail?: string,
+    userName?: string
   ): Promise<{ data: Viaje[]; isRealtime: boolean; error?: string }> {
     if (!isSupabaseConfigured || !userId) {
       return { data: DEMO_TRIPS, isRealtime: false };
+    }
+
+    if (userEmail) {
+      try {
+        await this.claimPendingInvitations(userId, userEmail, userName);
+      } catch (claimErr) {
+        console.warn("Aviso al vincular invitaciones previas a getTrips:", claimErr);
+      }
     }
 
     try {
@@ -1714,6 +1792,7 @@ export const tripService = {
   /**
    * Obtiene todos los miembros e invitados de un viaje
    * Garantiza que el creador del viaje siempre figure como Administrador (owner)
+   * y asocia automáticamente al usuario actual si fue invitado por email.
    */
   async getMembers(
     viajeId: string,
@@ -1761,36 +1840,135 @@ export const tripService = {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("viaje_miembros")
-        .select("*")
-        .eq("viaje_id", viajeId)
-        .order("invitado_en", { ascending: true });
+      let rawMembers: Array<{
+        id: string;
+        viaje_id: string;
+        user_id?: string | null;
+        email?: string | null;
+        nombre?: string | null;
+        rol?: string | null;
+        estado?: string | null;
+        invitado_en?: string;
+        avatar_url?: string | null;
+      }> = [];
 
-      let members: TripMember[] = [];
-      if (!error && data) {
-        members = data.map((d) => ({
+      // 1. Intentar primero con RPC seguro 'get_viaje_miembros' (resuelve nombres y emails reales de auth.users sin problemas de RLS)
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc(
+          "get_viaje_miembros",
+          { p_viaje_id: viajeId }
+        );
+        if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
+          rawMembers = rpcData;
+        }
+      } catch {
+        // Fallback a select directo
+      }
+
+      // 2. Si RPC no arrojó resultados o falló, consultar directamente la tabla viaje_miembros
+      if (rawMembers.length === 0) {
+        const { data, error } = await supabase
+          .from("viaje_miembros")
+          .select("*")
+          .eq("viaje_id", viajeId)
+          .order("invitado_en", { ascending: true });
+
+        if (!error && data) {
+          rawMembers = data;
+        } else if (error) {
+          console.warn("Aviso cargando viaje_miembros:", error.message);
+        }
+      }
+
+      const members: TripMember[] = rawMembers.map((d) => {
+        const isCurrent = d.user_id === currentUserId;
+        const realName =
+          d.nombre && d.nombre !== "Viajero" && d.nombre !== "Administrador"
+            ? d.nombre
+            : isCurrent && currentUserInfo?.name
+            ? currentUserInfo.name
+            : d.nombre || d.email?.split("@")[0] || "Viajero";
+
+        const realEmail =
+          d.email && !d.email.includes("ejemplo.com")
+            ? d.email
+            : isCurrent && currentUserInfo?.email
+            ? currentUserInfo.email
+            : d.email || "";
+
+        return {
           id: d.id,
           viaje_id: d.viaje_id,
           user_id: d.user_id,
-          nombre:
-            d.nombre ||
-            (d.user_id === currentUserId && currentUserInfo?.name
-              ? currentUserInfo.name
-              : d.email?.split("@")[0] || "Viajero"),
-          email:
-            d.email ||
-            (d.user_id === currentUserId && currentUserInfo?.email
-              ? currentUserInfo.email
-              : "viajero@ejemplo.com"),
+          nombre: realName,
+          email: realEmail,
           rol: (d.rol as RolMiembro) || "viewer",
           estado: (d.estado as EstadoMiembro) || "activo",
-          invitado_en: d.invitado_en,
+          invitado_en: d.invitado_en || new Date().toISOString(),
           avatar_url: d.avatar_url,
-        }));
+        };
+      });
+
+      // 3. Auto-activación: Si el usuario actual está en la lista (por ID o por email) y está 'pendiente', activarlo inmediatamente
+      if (currentUserId || currentUserInfo?.email) {
+        const cleanCurrentEmail = currentUserInfo?.email?.trim().toLowerCase();
+        const pendingMember = members.find(
+          (m) =>
+            (m.user_id === currentUserId ||
+              (cleanCurrentEmail && m.email && m.email.toLowerCase() === cleanCurrentEmail)) &&
+            (m.estado === "pendiente" || !m.user_id)
+        );
+
+        if (pendingMember) {
+          pendingMember.user_id = currentUserId || pendingMember.user_id;
+          if (
+            currentUserInfo?.name &&
+            (!pendingMember.nombre ||
+              pendingMember.nombre === "Viajero" ||
+              pendingMember.nombre === pendingMember.email?.split("@")[0])
+          ) {
+            pendingMember.nombre = currentUserInfo.name;
+          }
+          pendingMember.estado = "activo";
+
+          // Persistir en segundo plano en Supabase
+          Promise.resolve(
+            supabase
+              .from("viaje_miembros")
+              .update({
+                user_id: currentUserId,
+                nombre: pendingMember.nombre,
+                estado: "activo",
+              })
+              .eq("id", pendingMember.id)
+          ).catch((err) => {
+            console.warn("Aviso al auto-activar membresía:", err);
+          });
+        }
       }
 
-      // Si no hay un Administrador (owner) registrado aún, buscamos al creador del viaje
+      // 4. Si el usuario actual es el Administrador (owner) y su fila no tenía correo, actualizarlo
+      const ownerMember = members.find((m) => m.rol === "owner");
+      if (ownerMember && currentUserId && ownerMember.user_id === currentUserId) {
+        if (
+          currentUserInfo?.email &&
+          (!ownerMember.email || ownerMember.email.includes("ejemplo.com"))
+        ) {
+          ownerMember.email = currentUserInfo.email;
+          if (currentUserInfo.name) ownerMember.nombre = currentUserInfo.name;
+          Promise.resolve(
+            supabase
+              .from("viaje_miembros")
+              .update({
+                email: currentUserInfo.email,
+                nombre: ownerMember.nombre,
+              })
+              .eq("id", ownerMember.id)
+          ).catch(() => {});
+        }
+      }
+
+      // 5. Si no hay un Administrador (owner) registrado aún, buscamos al creador del viaje
       const hasOwner = members.some((m) => m.rol === "owner");
       if (!hasOwner) {
         const { data: tripData } = await supabase
@@ -1802,7 +1980,12 @@ export const tripService = {
         const creatorId = tripData?.creado_por || currentUserId;
         if (creatorId) {
           const isCurrent = creatorId === currentUserId;
-          const ownerMember: TripMember = {
+          const ownerEmail =
+            isCurrent && currentUserInfo?.email
+              ? currentUserInfo.email
+              : "";
+
+          const syntheticOwner: TripMember = {
             id: `member-${viajeId}-owner`,
             viaje_id: viajeId,
             user_id: creatorId,
@@ -1810,31 +1993,29 @@ export const tripService = {
               isCurrent && currentUserInfo?.name
                 ? currentUserInfo.name
                 : "Administrador",
-            email:
-              isCurrent && currentUserInfo?.email
-                ? currentUserInfo.email
-                : "",
+            email: ownerEmail || (isCurrent ? currentUserInfo?.email || "" : ""),
             rol: "owner",
             estado: "activo",
             invitado_en: new Date().toISOString(),
           };
 
-          // Persistir en segundo plano para que quede grabado en viaje_miembros
+          // Persistir en segundo plano si tenemos datos válidos
+          const upsertPayload = {
+            viaje_id: viajeId,
+            user_id: creatorId,
+            nombre: syntheticOwner.nombre,
+            rol: "owner" as RolMiembro,
+            estado: "activo" as EstadoMiembro,
+            ...(ownerEmail ? { email: ownerEmail } : {}),
+          };
+
           Promise.resolve(
-            supabase.from("viaje_miembros").upsert(
-              {
-                viaje_id: viajeId,
-                user_id: creatorId,
-                nombre: ownerMember.nombre,
-                email: ownerMember.email,
-                rol: "owner",
-                estado: "activo",
-              },
-              { onConflict: "viaje_id,user_id" }
-            )
+            supabase.from("viaje_miembros").upsert(upsertPayload, {
+              onConflict: "viaje_id,user_id",
+            })
           ).catch(() => {});
 
-          members.unshift(ownerMember);
+          members.unshift(syntheticOwner);
         }
       }
 
@@ -1910,6 +2091,65 @@ export const tripService = {
     }
 
     try {
+      // 1. Evitar duplicar invitación si ya existe en este viaje en Supabase
+      const { data: existing } = await supabase
+        .from("viaje_miembros")
+        .select("id, email, user_id")
+        .eq("viaje_id", viajeId)
+        .ilike("email", cleanEmail)
+        .maybeSingle();
+
+      if (existing) {
+        return {
+          success: false,
+          error: "Este correo ya forma parte de los invitados o miembros de este viaje.",
+        };
+      }
+
+      // 2. Intentar llamar al RPC 'invitar_miembro_viaje' si está disponible
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          "invitar_miembro_viaje",
+          {
+            p_viaje_id: viajeId,
+            p_email: cleanEmail,
+            p_nombre: cleanNombre,
+            p_rol: role,
+          }
+        );
+
+        if (!rpcError && rpcData) {
+          const row = (rpcData as unknown) as {
+            id: string;
+            viaje_id: string;
+            user_id?: string | null;
+            nombre: string;
+            email: string;
+            rol: RolMiembro;
+            estado: EstadoMiembro;
+            invitado_en: string;
+            avatar_url?: string | null;
+          };
+          return {
+            success: true,
+            data: {
+              id: row.id,
+              viaje_id: row.viaje_id,
+              user_id: row.user_id,
+              nombre: row.nombre || cleanNombre,
+              email: row.email || cleanEmail,
+              rol: row.rol || role,
+              estado: row.estado || "pendiente",
+              invitado_en: row.invitado_en || new Date().toISOString(),
+              avatar_url: row.avatar_url,
+            },
+          };
+        }
+      } catch {
+        // Fallback a inserción directa
+      }
+
+      // 3. Fallback: inserción directa en viaje_miembros
       const { data, error } = await supabase
         .from("viaje_miembros")
         .insert({
@@ -2027,10 +2267,42 @@ export const tripService = {
    * Reenvía la invitación por correo a un miembro pendiente
    */
   async resendInvite(
-    _viajeId: string,
-    _memberId: string,
+    viajeId: string,
+    memberId: string,
   ): Promise<{ success: boolean; error?: string }> {
-    return { success: true };
+    const isDemo =
+      !isSupabaseConfigured ||
+      viajeId.startsWith("demo-") ||
+      viajeId.startsWith("trip-") ||
+      viajeId === "portugal" ||
+      viajeId === "menorca" ||
+      viajeId === "pirineos";
+
+    const now = new Date().toISOString();
+
+    if (isDemo) {
+      localMembers = localMembers.map((m) =>
+        m.id === memberId ? { ...m, invitado_en: now } : m
+      );
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("viaje_miembros")
+        .update({
+          invitado_en: now,
+        })
+        .eq("id", memberId);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al reenviar invitación",
+      };
+    }
   },
 
   /**

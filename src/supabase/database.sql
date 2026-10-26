@@ -197,6 +197,7 @@ CREATE TABLE IF NOT EXISTS gastos (
 -- ---------- 3. Índices ----------
 CREATE INDEX IF NOT EXISTS idx_viaje_miembros_user ON viaje_miembros(user_id);
 CREATE INDEX IF NOT EXISTS idx_viaje_miembros_viaje ON viaje_miembros(viaje_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_viaje_miembros_viaje_email ON viaje_miembros (viaje_id, lower(trim(email))) WHERE email IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_ciudades_viaje ON ciudades(viaje_id);
 CREATE INDEX IF NOT EXISTS idx_actividades_ciudad ON actividades(ciudad_id);
 CREATE INDEX IF NOT EXISTS idx_hoteles_ciudad ON hoteles(ciudad_id);
@@ -206,17 +207,63 @@ CREATE INDEX IF NOT EXISTS idx_tareas_ciudad ON tareas(ciudad_id);
 CREATE INDEX IF NOT EXISTS idx_gastos_viaje ON gastos(viaje_id);
 
 -- ---------- 4. Funciones compartidas para RLS ----------
-CREATE OR REPLACE FUNCTION es_miembro(viaje uuid)
-RETURNS boolean
-LANGUAGE sql
+
+-- Helper seguro para obtener el email del usuario autenticado sin violar permisos de auth.users
+CREATE OR REPLACE FUNCTION current_user_email()
+RETURNS text
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 STABLE
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM viaje_miembros m
-    WHERE m.viaje_id = viaje AND m.user_id = auth.uid()
+DECLARE
+  v_email text;
+BEGIN
+  -- 1. Intentar obtener el email desde el claim del JWT
+  v_email := coalesce(
+    nullif(current_setting('request.jwt.claim.email', true), ''),
+    (auth.jwt()->>'email')
   );
+  IF v_email IS NOT NULL AND trim(v_email) <> '' THEN
+    RETURN lower(trim(v_email));
+  END IF;
+
+  -- 2. Si no viene en el token JWT, consultar auth.users mediante SECURITY DEFINER
+  IF auth.uid() IS NOT NULL THEN
+    SELECT lower(trim(email)) INTO v_email
+    FROM auth.users
+    WHERE id = auth.uid();
+  END IF;
+
+  RETURN v_email;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION current_user_email() TO authenticated, anon;
+
+CREATE OR REPLACE FUNCTION es_miembro(viaje uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_email text := current_user_email();
+BEGIN
+  IF v_uid IS NULL AND v_email IS NULL THEN
+    RETURN false;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1 FROM viaje_miembros m
+    WHERE m.viaje_id = viaje AND (
+      (v_uid IS NOT NULL AND m.user_id = v_uid)
+      OR (v_email IS NOT NULL AND m.email IS NOT NULL AND lower(trim(m.email)) = v_email)
+    )
+  );
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION viaje_de_ciudad(ciudad uuid)
@@ -272,7 +319,15 @@ CREATE POLICY "borrar viaje solo owner"
 DROP POLICY IF EXISTS "ver miembros del viaje" ON viaje_miembros;
 CREATE POLICY "ver miembros del viaje"
   ON viaje_miembros FOR SELECT
-  USING (es_miembro(viaje_id) OR user_id = auth.uid());
+  USING (
+    es_miembro(viaje_id)
+    OR (auth.uid() IS NOT NULL AND user_id = auth.uid())
+    OR (
+      email IS NOT NULL
+      AND current_user_email() IS NOT NULL
+      AND lower(trim(email)) = current_user_email()
+    )
+  );
 
 DROP POLICY IF EXISTS "invitar miembros (solo owner)" ON viaje_miembros;
 CREATE POLICY "invitar miembros (solo owner)"
@@ -292,16 +347,23 @@ CREATE POLICY "invitar miembros (solo owner)"
   );
 
 DROP POLICY IF EXISTS "actualizar rol (solo owner)" ON viaje_miembros;
-CREATE POLICY "actualizar rol (solo owner)"
+DROP POLICY IF EXISTS "actualizar rol o reclamar invitacion" ON viaje_miembros;
+CREATE POLICY "actualizar rol o reclamar invitacion"
   ON viaje_miembros FOR UPDATE
   USING (
-    EXISTS (
+    -- El propio usuario puede actualizar su fila de invitación para vincular su cuenta o activar su estado
+    (auth.uid() IS NOT NULL AND user_id = auth.uid())
+    OR (
+      email IS NOT NULL
+      AND current_user_email() IS NOT NULL
+      AND lower(trim(email)) = current_user_email()
+    )
+    OR EXISTS (
       SELECT 1 FROM viaje_miembros m
       WHERE m.viaje_id = viaje_miembros.viaje_id
         AND m.user_id = auth.uid() AND m.rol = 'owner'
     )
-    OR
-    EXISTS (
+    OR EXISTS (
       SELECT 1 FROM viajes v
       WHERE v.id = viaje_miembros.viaje_id
         AND v.creado_por = auth.uid()
@@ -311,11 +373,19 @@ CREATE POLICY "actualizar rol (solo owner)"
 DROP POLICY IF EXISTS "salir del viaje (auto-eliminación) o owner" ON viaje_miembros;
 CREATE POLICY "salir del viaje (auto-eliminación) o owner"
   ON viaje_miembros FOR DELETE
-  USING (user_id = auth.uid() OR EXISTS (
-    SELECT 1 FROM viaje_miembros m
-    WHERE m.viaje_id = viaje_miembros.viaje_id
-      AND m.user_id = auth.uid() AND m.rol = 'owner'
-  ));
+  USING (
+    (auth.uid() IS NOT NULL AND user_id = auth.uid())
+    OR (
+      email IS NOT NULL
+      AND current_user_email() IS NOT NULL
+      AND lower(trim(email)) = current_user_email()
+    )
+    OR EXISTS (
+      SELECT 1 FROM viaje_miembros m
+      WHERE m.viaje_id = viaje_miembros.viaje_id
+        AND m.user_id = auth.uid() AND m.rol = 'owner'
+    )
+  );
 
 -- Ciudades
 DROP POLICY IF EXISTS "ver ciudades" ON ciudades;
@@ -530,3 +600,266 @@ DROP TRIGGER IF EXISTS trg_gasto_hotel ON hoteles;
 CREATE TRIGGER trg_gasto_hotel
   AFTER UPDATE ON hoteles
   FOR EACH ROW EXECUTE FUNCTION crear_gasto_desde_hotel();
+
+-- ---------- 9. Asociación automática de invitaciones con emails y usuarios ----------
+
+-- Vincular automáticamente user_id cuando se invita por email si el usuario ya está registrado en auth.users,
+-- o autocompletar email si se inserta con user_id
+CREATE OR REPLACE FUNCTION asociar_miembro_al_invitar()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id uuid;
+  v_nombre text;
+BEGIN
+  -- Si viene con email pero sin user_id, buscar si ya existe una cuenta con ese email
+  IF NEW.email IS NOT NULL AND trim(NEW.email) <> '' AND NEW.user_id IS NULL THEN
+    SELECT id, coalesce(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name')
+    INTO v_user_id, v_nombre
+    FROM auth.users
+    WHERE lower(trim(email)) = lower(trim(NEW.email))
+    LIMIT 1;
+
+    IF v_user_id IS NOT NULL THEN
+      NEW.user_id := v_user_id;
+      IF (NEW.nombre IS NULL OR trim(NEW.nombre) = '' OR NEW.nombre = split_part(NEW.email, '@', 1)) AND v_nombre IS NOT NULL THEN
+        NEW.nombre := v_nombre;
+      END IF;
+    END IF;
+  END IF;
+
+  -- Si viene con user_id pero sin email, autocompletar el email desde auth.users
+  IF NEW.user_id IS NOT NULL AND (NEW.email IS NULL OR trim(NEW.email) = '') THEN
+    SELECT email, coalesce(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name')
+    INTO NEW.email, v_nombre
+    FROM auth.users
+    WHERE id = NEW.user_id;
+
+    IF (NEW.nombre IS NULL OR trim(NEW.nombre) = '') AND v_nombre IS NOT NULL THEN
+      NEW.nombre := v_nombre;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_asociar_miembro_invitacion ON viaje_miembros;
+CREATE TRIGGER trg_asociar_miembro_invitacion
+  BEFORE INSERT OR UPDATE OF email, user_id ON viaje_miembros
+  FOR EACH ROW EXECUTE FUNCTION asociar_miembro_al_invitar();
+
+-- Asociar invitaciones pendientes cuando se registra un nuevo usuario en auth.users
+CREATE OR REPLACE FUNCTION asociar_invitaciones_nuevo_usuario()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.email IS NOT NULL THEN
+    UPDATE viaje_miembros
+    SET user_id = NEW.id,
+        nombre = coalesce(viaje_miembros.nombre, NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
+        estado = 'activo'
+    WHERE lower(trim(email)) = lower(trim(NEW.email))
+      AND (user_id IS NULL OR user_id = NEW.id);
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_asociar_invitaciones_usuario ON auth.users;
+CREATE TRIGGER trg_asociar_invitaciones_usuario
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION asociar_invitaciones_nuevo_usuario();
+
+-- RPC para que el usuario autenticado reclame y asocie todas sus invitaciones pendientes por email o user_id
+CREATE OR REPLACE FUNCTION asociar_invitaciones()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id uuid := auth.uid();
+  v_email text;
+  v_nombre text;
+  v_count integer := 0;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  SELECT email, coalesce(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', split_part(email, '@', 1))
+  INTO v_email, v_nombre
+  FROM auth.users
+  WHERE id = v_user_id;
+
+  IF v_email IS NULL OR trim(v_email) = '' THEN
+    RETURN 0;
+  END IF;
+
+  -- Actualizar todas las filas asociadas al email o al user_id que estén pendientes
+  UPDATE viaje_miembros
+  SET user_id = v_user_id,
+      nombre = coalesce(nullif(viaje_miembros.nombre, ''), v_nombre, split_part(v_email, '@', 1)),
+      estado = 'activo'
+  WHERE (lower(trim(email)) = lower(trim(v_email)) OR user_id = v_user_id)
+    AND (estado = 'pendiente' OR user_id IS NULL);
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION asociar_invitaciones() TO authenticated, anon;
+
+-- RPC segura para invitar miembros y asociar inmediatamente su cuenta si ya existe
+CREATE OR REPLACE FUNCTION invitar_miembro_viaje(
+  p_viaje_id uuid,
+  p_email text,
+  p_nombre text DEFAULT NULL,
+  p_rol rol_miembro DEFAULT 'viewer'
+)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_clean_email text := lower(trim(p_email));
+  v_user_id uuid;
+  v_nombre text := trim(p_nombre);
+  v_res viaje_miembros%ROWTYPE;
+BEGIN
+  -- Permisos: solo el owner del viaje puede invitar
+  IF NOT (
+    EXISTS (
+      SELECT 1 FROM viaje_miembros
+      WHERE viaje_id = p_viaje_id AND user_id = auth.uid() AND rol = 'owner'
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM viajes
+      WHERE id = p_viaje_id AND creado_por = auth.uid()
+    )
+  ) THEN
+    RAISE EXCEPTION 'No tienes permiso para invitar miembros a este viaje.';
+  END IF;
+
+  -- Comprobar si ya existe en el viaje
+  IF EXISTS (
+    SELECT 1 FROM viaje_miembros
+    WHERE viaje_id = p_viaje_id AND lower(trim(email)) = v_clean_email
+  ) THEN
+    -- Actualizar rol y fecha si ya existía
+    UPDATE viaje_miembros
+    SET rol = p_rol,
+        invitado_en = now()
+    WHERE viaje_id = p_viaje_id AND lower(trim(email)) = v_clean_email
+    RETURNING * INTO v_res;
+
+    RETURN row_to_json(v_res);
+  END IF;
+
+  -- Buscar si el usuario ya existe en auth.users
+  SELECT id, coalesce(raw_user_meta_data->>'full_name', raw_user_meta_data->>'name', split_part(email, '@', 1))
+  INTO v_user_id, v_nombre
+  FROM auth.users
+  WHERE lower(trim(email)) = v_clean_email
+  LIMIT 1;
+
+  IF v_nombre IS NULL OR trim(v_nombre) = '' THEN
+    v_nombre := coalesce(trim(p_nombre), split_part(v_clean_email, '@', 1));
+  END IF;
+
+  INSERT INTO viaje_miembros (viaje_id, user_id, email, nombre, rol, estado)
+  VALUES (p_viaje_id, v_user_id, v_clean_email, v_nombre, p_rol, 'pendiente')
+  RETURNING * INTO v_res;
+
+  RETURN row_to_json(v_res);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION invitar_miembro_viaje(uuid, text, text, rol_miembro) TO authenticated, anon;
+
+-- RPC segura para consultar miembros de un viaje con sus datos reales desde auth.users
+CREATE OR REPLACE FUNCTION get_viaje_miembros(p_viaje_id uuid)
+RETURNS TABLE (
+  id uuid,
+  viaje_id uuid,
+  user_id uuid,
+  email text,
+  nombre text,
+  rol rol_miembro,
+  estado text,
+  invitado_en timestamptz,
+  avatar_url text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+BEGIN
+  -- Permiso: debe ser el creador del viaje o miembro del viaje
+  IF NOT (
+    EXISTS (
+      SELECT 1 FROM viajes v WHERE v.id = p_viaje_id AND v.creado_por = auth.uid()
+    )
+    OR es_miembro(p_viaje_id)
+  ) THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT 
+    m.id,
+    m.viaje_id,
+    m.user_id,
+    coalesce(nullif(trim(m.email), ''), u.email, '') as email,
+    coalesce(nullif(trim(m.nombre), ''), u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name', split_part(coalesce(m.email, u.email), '@', 1), 'Viajero') as nombre,
+    m.rol,
+    m.estado,
+    m.invitado_en,
+    coalesce(m.avatar_url, u.raw_user_meta_data->>'avatar_url') as avatar_url
+  FROM viaje_miembros m
+  LEFT JOIN auth.users u ON u.id = m.user_id
+  WHERE m.viaje_id = p_viaje_id
+  ORDER BY m.invitado_en ASC;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_viaje_miembros(uuid) TO authenticated, anon;
+
+-- ---------- 10. Migración y backfill de miembros existentes ----------
+-- Actualizar emails y nombres vacíos o por defecto en viaje_miembros directamente desde auth.users
+UPDATE viaje_miembros vm
+SET 
+  email = coalesce(nullif(trim(vm.email), ''), u.email),
+  nombre = coalesce(nullif(trim(vm.nombre), ''), u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name', split_part(u.email, '@', 1), 'Administrador')
+FROM auth.users u
+WHERE vm.user_id = u.id
+  AND (vm.email IS NULL OR trim(vm.email) = '' OR vm.nombre IS NULL OR vm.nombre = 'Administrador' OR vm.nombre = 'Viajero');
+
+-- Asegurar que el creador de cada viaje en la tabla viajes esté registrado como owner en viaje_miembros
+INSERT INTO viaje_miembros (viaje_id, user_id, email, nombre, rol, estado)
+SELECT 
+  v.id,
+  v.creado_por,
+  u.email,
+  coalesce(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name', split_part(u.email, '@', 1), 'Administrador'),
+  'owner'::rol_miembro,
+  'activo'
+FROM viajes v
+JOIN auth.users u ON u.id = v.creado_por
+ON CONFLICT (viaje_id, user_id)
+DO UPDATE SET
+  rol = 'owner',
+  email = coalesce(nullif(EXCLUDED.email, ''), viaje_miembros.email),
+  nombre = coalesce(nullif(EXCLUDED.nombre, ''), viaje_miembros.nombre);

@@ -367,6 +367,35 @@ export interface Database {
         Args: { ciudad: string }
         Returns: string
       }
+      asociar_invitaciones: {
+        Args: Record<string, never>
+        Returns: number
+      }
+      invitar_miembro_viaje: {
+        Args: {
+          p_viaje_id: string
+          p_email: string
+          p_nombre?: string | null
+          p_rol?: RolMiembro
+        }
+        Returns: unknown
+      }
+      get_viaje_miembros: {
+        Args: {
+          p_viaje_id: string
+        }
+        Returns: {
+          id: string
+          viaje_id: string
+          user_id: string | null
+          email: string
+          nombre: string
+          rol: RolMiembro
+          estado: EstadoMiembro
+          invitado_en: string
+          avatar_url: string | null
+        }[]
+      }
     }
     Enums: {
       rol_miembro: RolMiembro

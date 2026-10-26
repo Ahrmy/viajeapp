@@ -217,7 +217,7 @@ export function TripOverview({
   // 1. Cargar viajes desde Supabase si el usuario está autenticado
   const loadTrips = useCallback(async () => {
     setIsLoadingTrips(true)
-    const res = await tripService.getTrips(user?.id)
+    const res = await tripService.getTrips(user?.id, user?.email ?? undefined, userName)
 
     if (res.data && res.data.length > 0) {
       setShowSeedBanner(false)
@@ -244,15 +244,28 @@ export function TripOverview({
 
       setTripsList(options)
       setTripHeroes((prev) => ({ ...prev, ...heroesMap }))
+
+      // Comprobar si el enlace viene con un hash directo #viaje=id
+      let selectedOption = options[0]
+      if (typeof window !== "undefined" && window.location.hash.includes("viaje=")) {
+        const hashMatch = window.location.hash.match(/viaje=([a-zA-Z0-9_-]+)/)
+        if (hashMatch && hashMatch[1]) {
+          const matchFromHash = options.find((o) => o.id === hashMatch[1])
+          if (matchFromHash) {
+            selectedOption = matchFromHash
+          }
+        }
+      }
+
       setCurrentTrip((prev) => {
         if (prev && options.some((o) => o.id === prev.id)) {
           return options.find((o) => o.id === prev.id)!
         }
-        return options[0]
+        return selectedOption
       })
       setInlineTitleValue((prev) => {
         const matching = options.find((o) => o.name === prev)
-        return matching ? matching.name : options[0].name
+        return matching ? matching.name : selectedOption.name
       })
       setSelectedCityId(null)
       if (res.data[0].presupuesto_total) {
@@ -267,11 +280,32 @@ export function TripOverview({
       setTasksList([])
     }
     setIsLoadingTrips(false)
-  }, [user])
+  }, [user, userName])
 
   useEffect(() => {
     loadTrips()
   }, [loadTrips])
+
+  // Escuchar cambios de hash en la ventana (ej. al hacer clic en enlaces compartidos de viaje)
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (typeof window === "undefined" || tripsList.length === 0) return
+      const hash = window.location.hash
+      if (hash.includes("viaje=")) {
+        const hashMatch = hash.match(/viaje=([a-zA-Z0-9_-]+)/)
+        if (hashMatch && hashMatch[1]) {
+          const target = tripsList.find((t) => t.id === hashMatch[1])
+          if (target) {
+            setCurrentTrip(target)
+            setInlineTitleValue(target.name)
+          }
+        }
+      }
+    }
+
+    window.addEventListener("hashchange", handleHashChange)
+    return () => window.removeEventListener("hashchange", handleHashChange)
+  }, [tripsList])
 
   // 2. Cargar ciudades, tareas y gastos para el viaje activo
   useEffect(() => {
@@ -1302,7 +1336,12 @@ export function TripOverview({
             rol
           )
           if (res.success && res.data) {
-            setMembersList((prev) => [...prev, res.data!])
+            setMembersList((prev) => {
+              const filtered = prev.filter(
+                (m) => m.email.toLowerCase() !== res.data!.email.toLowerCase()
+              )
+              return [...filtered, res.data!]
+            })
             setTripHeroes((prev) => {
               const currentHero = prev[currentTrip.id]
               if (!currentHero) return prev
@@ -1332,6 +1371,13 @@ export function TripOverview({
         }}
         onResendInvite={async (memberId) => {
           await tripService.resendInvite(currentTrip.id, memberId)
+          setMembersList((prev) =>
+            prev.map((m) =>
+              m.id === memberId
+                ? { ...m, invitado_en: new Date().toISOString() }
+                : m
+            )
+          )
         }}
       />
 
