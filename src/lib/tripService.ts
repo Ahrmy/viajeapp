@@ -177,149 +177,11 @@ export const DEMO_CITIES: Ciudad[] = [
 // Almacén mutable en memoria para persistencia local durante la sesión
 let localCities: Ciudad[] = [...DEMO_CITIES];
 
-export const DEMO_TASKS: Tarea[] = [
-  {
-    id: "task-1",
-    viaje_id: DEMO_TRIP_ID,
-    ciudad_id: "demo-sintra",
-    titulo: "Reservar entradas al Palacio da Pena",
-    asignado_a: null,
-    estado: "pendiente",
-    vencimiento: "2026-10-23",
-    creado_en: new Date().toISOString(),
-  },
-  {
-    id: "task-2",
-    viaje_id: DEMO_TRIP_ID,
-    ciudad_id: "demo-sintra",
-    titulo: "Elegir alojamiento en Sintra",
-    asignado_a: null,
-    estado: "en_curso",
-    vencimiento: "2026-10-25",
-    creado_en: new Date().toISOString(),
-  },
-  {
-    id: "task-3",
-    viaje_id: DEMO_TRIP_ID,
-    ciudad_id: "demo-oporto",
-    titulo: "Organizar el paseo por el Duero",
-    asignado_a: null,
-    estado: "pendiente",
-    vencimiento: "2026-10-28",
-    creado_en: new Date().toISOString(),
-  },
-  {
-    id: "task-4",
-    viaje_id: DEMO_TRIP_ID,
-    ciudad_id: "demo-lisboa",
-    titulo: "Reservar una cena en Alfama",
-    asignado_a: null,
-    estado: "pendiente",
-    vencimiento: "2026-10-30",
-    creado_en: new Date().toISOString(),
-  },
-  {
-    id: "task-5",
-    viaje_id: DEMO_TRIP_ID,
-    ciudad_id: null,
-    titulo: "Preparar la lista de equipaje compartida",
-    asignado_a: null,
-    estado: "pendiente",
-    vencimiento: null,
-    creado_en: new Date().toISOString(),
-  },
-  {
-    id: "task-6",
-    viaje_id: DEMO_TRIP_ID,
-    ciudad_id: null,
-    titulo: "Comprar billetes de avión a Lisboa",
-    asignado_a: null,
-    estado: "hecha",
-    vencimiento: "2026-10-15",
-    creado_en: new Date().toISOString(),
-  },
-  // Tareas para Un verano en Menorca
-  {
-    id: "task-menorca-1",
-    viaje_id: "demo-menorca-2026",
-    ciudad_id: "demo-ciutadella",
-    titulo: "Reservar paseo en barco por calas vírgenes",
-    asignado_a: null,
-    estado: "pendiente",
-    vencimiento: "2026-07-13",
-    creado_en: new Date().toISOString(),
-  },
-  {
-    id: "task-menorca-2",
-    viaje_id: "demo-menorca-2026",
-    ciudad_id: "demo-fornells",
-    titulo: "Degustar caldereta de langosta en Fornells",
-    asignado_a: null,
-    estado: "pendiente",
-    vencimiento: "2026-07-16",
-    creado_en: new Date().toISOString(),
-  },
-  // Tareas para Escapada a los Pirineos
-  {
-    id: "task-pirineos-1",
-    viaje_id: "demo-pirineos-2026",
-    ciudad_id: "demo-torla",
-    titulo: "Ruta de la cascada Cola de Caballo (Ordesa)",
-    asignado_a: null,
-    estado: "pendiente",
-    vencimiento: "2026-04-03",
-    creado_en: new Date().toISOString(),
-  },
-];
+export const DEMO_TASKS: Tarea[] = [];
 
 let localTasks: Tarea[] = [...DEMO_TASKS];
 
-export const DEMO_IDEAS: IdeaViaje[] = [
-  {
-    id: "idea-1",
-    viaje_id: DEMO_TRIP_ID,
-    ambito: "Lisboa",
-    titulo: "Perderse por Alfama",
-    descripcion: "Un paseo sin prisas el 7 nov, con una parada para escuchar fado.",
-    icono: "monumento",
-    creado_por_nombre: "Lucía Martín",
-    convertida_en_tarea: false,
-    creado_en: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
-  {
-    id: "idea-2",
-    viaje_id: DEMO_TRIP_ID,
-    ambito: "Sintra",
-    titulo: "Un paseo entre jardines",
-    descripcion: "El 9 nov, dejar un rato para recorrer el parque de Pena después del palacio.",
-    icono: "caminata",
-    creado_por_nombre: "Nicolás Martín",
-    convertida_en_tarea: false,
-    creado_en: new Date(Date.now() - 86400000 * 3).toISOString(),
-  },
-  {
-    id: "idea-3",
-    viaje_id: DEMO_TRIP_ID,
-    ambito: "Oporto",
-    titulo: "Atardecer en la Ribeira",
-    descripcion: "Cruzar a Gaia y ver caer el sol junto al río. Un plan para el 11 nov.",
-    icono: "playa",
-    creado_por_nombre: "Daniel López",
-    convertida_en_tarea: false,
-    creado_en: new Date(Date.now() - 86400000 * 4).toISOString(),
-  },
-  {
-    id: "idea-4",
-    viaje_id: DEMO_TRIP_ID,
-    ambito: "Viaje general",
-    titulo: "Un diario entre los cuatro",
-    descripcion: "Cada día, una foto y una frase de cada uno para recordar el viaje.",
-    icono: "cuaderno",
-    creado_por_nombre: "Clara López",
-    convertida_en_tarea: false,
-    creado_en: new Date(Date.now() - 86400000 * 5).toISOString(),
-  },
-];
+export const DEMO_IDEAS: IdeaViaje[] = [];
 
 let localIdeas: IdeaViaje[] = [...DEMO_IDEAS];
 
@@ -509,46 +371,7 @@ export const DEMO_TRANSPORTS: Transporte[] = [
   },
 ];
 
-export const DEMO_MAIN_TRANSPORTS: Transporte[] = [
-  {
-    id: "trans-main-ida",
-    ciudad_id: "main-transports",
-    tipo: "avion",
-    nombre_linea: "Iberia · Turista",
-    origen: "Madrid · MAD",
-    destino: "sintra · LIS",
-    hora_salida: "09:00",
-    hora_llegada: "09:25",
-    duracion: "1 h 25 min",
-    costo: 340,
-    reservado: false,
-    estado_seleccion: "sin_nada",
-    notas: "Equipaje de mano · Solo ida",
-    enlace_compra: "https://www.iberia.com",
-    fecha_hora: "Ida · 6",
-    escalas: 0,
-    creado_en: new Date("2026-10-27T08:00:00Z").toISOString(),
-  },
-  {
-    id: "trans-main-vuelta",
-    ciudad_id: "main-transports",
-    tipo: "avion",
-    nombre_linea: "Iberia · Turista",
-    origen: "sdfsFASGD AERG AGF · OPO",
-    destino: "Madrid · MAD",
-    hora_salida: "18:30",
-    hora_llegada: "20:40",
-    duracion: "1 h 10 min",
-    costo: 316,
-    reservado: false,
-    estado_seleccion: "sin_nada",
-    notas: "Equipaje de mano · Solo ida",
-    enlace_compra: "https://www.iberia.com",
-    fecha_hora: "Vuelta · 13 nov 2026",
-    escalas: 0,
-    creado_en: new Date("2026-10-27T08:05:00Z").toISOString(),
-  },
-];
+export const DEMO_MAIN_TRANSPORTS: Transporte[] = [];
 
 let localTransports: Transporte[] = [...DEMO_TRANSPORTS, ...DEMO_MAIN_TRANSPORTS];
 
@@ -1785,7 +1608,6 @@ export const tripService = {
    */
   async getMainTransports(tripId: string): Promise<Transporte[]> {
     const mainCityId = `main-${tripId}`;
-    const legacyMainCityId = "main-transports";
 
     // Intentar leer de localStorage primero para persistencia instantánea en el navegador
     if (typeof window !== "undefined") {
@@ -1793,8 +1615,13 @@ export const tripService = {
         const stored = localStorage.getItem(`viajeapp_main_transports_${tripId}`);
         if (stored) {
           const parsed = JSON.parse(stored) as Transporte[];
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
+          if (Array.isArray(parsed)) {
+            // Filtrar posibles datos demo / mocks creados previamente
+            return parsed.filter(
+              (t) =>
+                !t.id.startsWith("trans-main-ida") &&
+                !t.id.startsWith("trans-main-vuelta")
+            );
           }
         }
       } catch (e) {
@@ -1803,32 +1630,41 @@ export const tripService = {
     }
 
     if (!isSupabaseConfigured || tripId.startsWith("demo-")) {
-      const filtered = localTransports.filter(
-        (t) => t.ciudad_id === mainCityId || t.ciudad_id === legacyMainCityId
+      return localTransports.filter(
+        (t) =>
+          t.ciudad_id === mainCityId &&
+          !t.id.startsWith("trans-main-ida") &&
+          !t.id.startsWith("trans-main-vuelta")
       );
-      if (filtered.length > 0) return filtered;
-      return [...DEMO_MAIN_TRANSPORTS];
     }
 
     try {
       const { data, error } = await supabase
         .from("transportes")
         .select("*")
-        .or(`ciudad_id.eq.${mainCityId},ciudad_id.eq.${legacyMainCityId}`)
+        .eq("ciudad_id", mainCityId)
         .order("creado_en", { ascending: true });
 
-      if (error || !data || data.length === 0) {
-        const filtered = localTransports.filter(
-          (t) => t.ciudad_id === mainCityId || t.ciudad_id === legacyMainCityId
+      if (error || !data) {
+        return localTransports.filter(
+          (t) =>
+            t.ciudad_id === mainCityId &&
+            !t.id.startsWith("trans-main-ida") &&
+            !t.id.startsWith("trans-main-vuelta")
         );
-        return filtered.length > 0 ? filtered : [...DEMO_MAIN_TRANSPORTS];
       }
-      return data;
-    } catch {
-      const filtered = localTransports.filter(
-        (t) => t.ciudad_id === mainCityId || t.ciudad_id === legacyMainCityId
+      return data.filter(
+        (t) =>
+          !t.id.startsWith("trans-main-ida") &&
+          !t.id.startsWith("trans-main-vuelta")
       );
-      return filtered.length > 0 ? filtered : [...DEMO_MAIN_TRANSPORTS];
+    } catch {
+      return localTransports.filter(
+        (t) =>
+          t.ciudad_id === mainCityId &&
+          !t.id.startsWith("trans-main-ida") &&
+          !t.id.startsWith("trans-main-vuelta")
+      );
     }
   },
 
@@ -2799,12 +2635,6 @@ export const tripService = {
       const lisboaCity = (cities as Ciudad[]).find(
         (c) => c.nombre === "Lisboa",
       );
-      const sintraCity = (cities as Ciudad[]).find(
-        (c) => c.nombre === "Sintra",
-      );
-      const oportoCity = (cities as Ciudad[]).find(
-        (c) => c.nombre === "Oporto",
-      );
 
       // 3. Insertar actividades si hay ciudades
       if (lisboaCity) {
@@ -2865,31 +2695,6 @@ export const tripService = {
             },
           ]);
       }
-
-      // 4. Insertar tareas del viaje y de ciudades
-      await supabase.from("tareas").insert([
-        {
-          viaje_id: tripId,
-          ciudad_id: sintraCity?.id ?? null,
-          titulo: "Reservar entradas al Palacio da Pena",
-          vencimiento: "2026-10-23",
-          estado: "pendiente",
-        },
-        {
-          viaje_id: tripId,
-          ciudad_id: sintraCity?.id ?? null,
-          titulo: "Elegir alojamiento en Sintra",
-          vencimiento: "2026-10-25",
-          estado: "pendiente",
-        },
-        {
-          viaje_id: tripId,
-          ciudad_id: oportoCity?.id ?? null,
-          titulo: "Organizar el paseo por el Duero",
-          vencimiento: "2026-10-28",
-          estado: "pendiente",
-        },
-      ]);
 
       // 5. Insertar gastos iniciales
       await supabase.from("gastos").insert([

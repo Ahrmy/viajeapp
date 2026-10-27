@@ -4,7 +4,7 @@ import { DEFAULT_COVER_IMAGE } from "@/lib/tripService"
 
 interface TripHeroProps {
   tripName?: string
-  daysRemaining?: number
+  daysRemaining?: number | null
   departureDate?: string
   isAdmin?: boolean
   initialData?: Partial<HeroData>
@@ -15,8 +15,8 @@ interface TripHeroProps {
 
 export function TripHero({
   tripName = "Portugal en familia",
-  daysRemaining = 21,
-  departureDate = "6 de noviembre",
+  daysRemaining = null,
+  departureDate = "Fechas por definir",
   isAdmin = true,
   initialData,
   onSaveHero,
@@ -176,25 +176,37 @@ export function TripHero({
           </div>
 
           {/* Big Counter */}
-          <div className="flex items-baseline gap-2.5 my-1">
-            <span className="font-serif text-6xl sm:text-7xl lg:text-[80px] font-normal leading-none tracking-tight">
-              {daysRemaining}
-            </span>
-            <span className="font-serif text-2xl sm:text-[27px] font-normal text-white/90">
-              días
-            </span>
-          </div>
+          {daysRemaining === null ? (
+            <div className="flex items-baseline gap-2.5 my-1">
+              <span className="font-serif text-3xl sm:text-4xl font-normal leading-tight tracking-tight">
+                Fechas por definir
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-2.5 my-1">
+              <span className="font-serif text-6xl sm:text-7xl lg:text-[80px] font-normal leading-none tracking-tight">
+                {daysRemaining}
+              </span>
+              <span className="font-serif text-2xl sm:text-[27px] font-normal text-white/90">
+                días
+              </span>
+            </div>
+          )}
 
           {/* Bottom Details */}
           <div className="flex flex-col gap-2.5 pt-1">
             <p className="text-xs text-[#A7F3D0] font-normal">
-              para empezar vuestra aventura.
+              {daysRemaining === null
+                ? "Añade la fecha de salida para ver la cuenta atrás."
+                : "para empezar vuestra aventura."}
             </p>
 
             <div className="w-full border-t border-white/20" />
 
             <div className="flex items-center justify-between text-xs text-white">
-              <span>Nos vamos el {departureDate}</span>
+              <span>
+                {daysRemaining === null ? departureDate : `Nos vamos el ${departureDate}`}
+              </span>
               <svg
                 width="14"
                 height="14"

@@ -333,7 +333,6 @@ export function ItineraryView({
   })
 
   const firstCityName = items[0]?.name || "Lisboa"
-  const lastCityName = items[items.length - 1]?.name || "Oporto"
 
   // Main Transports state & CRUD (Transportes principales)
   const [mainTransports, setMainTransports] = useState<Transporte[]>([])
@@ -344,56 +343,12 @@ export function ItineraryView({
     let isMounted = true
     tripService.getMainTransports(trip.id).then((data) => {
       if (!isMounted) return
-      if (data && data.length > 0) {
-        setMainTransports(data)
-      } else {
-        const defaults: Transporte[] = [
-          {
-            id: `trans-main-ida-${trip.id}`,
-            ciudad_id: `main-${trip.id}`,
-            tipo: "avion",
-            nombre_linea: "Iberia · Turista",
-            origen: "Madrid · MAD",
-            destino: `${firstCityName} · LIS`,
-            hora_salida: "09:00",
-            hora_llegada: "09:25",
-            duracion: "1 h 25 min",
-            costo: 85 * effectiveTravelersCount,
-            reservado: false,
-            estado_seleccion: "sin_nada",
-            notas: "Equipaje de mano · Solo ida",
-            enlace_compra: "https://www.iberia.com",
-            fecha_hora: `Ida · ${trip.dates.split("–")[0]?.trim() || "6 nov"}`,
-            escalas: 0,
-            creado_en: new Date("2026-10-27T08:00:00Z").toISOString(),
-          },
-          {
-            id: `trans-main-vuelta-${trip.id}`,
-            ciudad_id: `main-${trip.id}`,
-            tipo: "avion",
-            nombre_linea: "Iberia · Turista",
-            origen: `${lastCityName} · OPO`,
-            destino: "Madrid · MAD",
-            hora_salida: "18:30",
-            hora_llegada: "20:40",
-            duracion: "1 h 10 min",
-            costo: 79 * effectiveTravelersCount,
-            reservado: false,
-            estado_seleccion: "sin_nada",
-            notas: "Equipaje de mano · Solo ida",
-            enlace_compra: "https://www.iberia.com",
-            fecha_hora: `Vuelta · ${trip.dates.split("–")[1]?.trim() || "13 nov 2026"}`,
-            escalas: 0,
-            creado_en: new Date("2026-10-27T08:05:00Z").toISOString(),
-          },
-        ]
-        setMainTransports(defaults)
-      }
+      setMainTransports(data || [])
     })
     return () => {
       isMounted = false
     }
-  }, [trip.id, firstCityName, lastCityName, trip.dates, effectiveTravelersCount])
+  }, [trip.id])
 
   const handleSaveMainTransport = async (formData: TransportFormData) => {
     if (formData.id) {

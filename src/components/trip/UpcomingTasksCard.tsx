@@ -11,29 +11,7 @@ export interface TaskItem {
   completed: boolean
 }
 
-const INITIAL_TASKS: TaskItem[] = [
-  {
-    id: "task-1",
-    title: "Reservar entradas al Palacio da Pena",
-    subtitle: "Sintra · Antes del 23 oct",
-    assignee: "CL",
-    completed: false,
-  },
-  {
-    id: "task-2",
-    title: "Elegir alojamiento en Sintra",
-    subtitle: "Sintra · Antes del 25 oct",
-    assignee: "PM",
-    completed: false,
-  },
-  {
-    id: "task-3",
-    title: "Organizar el paseo por el Duero",
-    subtitle: "Oporto · Antes del 28 oct",
-    assignee: "CL",
-    completed: false,
-  },
-]
+const INITIAL_TASKS: TaskItem[] = []
 
 interface UpcomingTasksCardProps {
   tasks?: TaskItem[]

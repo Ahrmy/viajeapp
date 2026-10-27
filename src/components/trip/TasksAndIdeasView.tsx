@@ -338,87 +338,7 @@ export function TasksAndIdeasView({
         })
         setTasks(mapped)
       } else {
-        // Sembrar las 6 tareas exactas de Figma
-        setTasks([
-          {
-            id: "task-figma-1",
-            viaje_id: tripId,
-            ciudad_id: "demo-sintra",
-            titulo: "Reservar entradas al Palacio da Pena",
-            asignado_a: null,
-            asignado_a_nombre: "Clara López",
-            creado_por_nombre: "Nicolás Martín",
-            ambito: "Sintra",
-            estado: "pendiente",
-            vencimiento: "2026-10-23",
-            creado_en: new Date().toISOString(),
-          },
-          {
-            id: "task-figma-2",
-            viaje_id: tripId,
-            ciudad_id: "demo-sintra",
-            titulo: "Elegir alojamiento en Sintra",
-            asignado_a: null,
-            asignado_a_nombre: "Daniel López",
-            creado_por_nombre: "Clara López",
-            ambito: "Sintra",
-            estado: "en_curso",
-            vencimiento: "2026-10-25",
-            creado_en: new Date().toISOString(),
-          },
-          {
-            id: "task-figma-3",
-            viaje_id: tripId,
-            ciudad_id: "demo-oporto",
-            titulo: "Organizar el paseo por el Duero",
-            asignado_a: null,
-            asignado_a_nombre: "Clara López",
-            creado_por_nombre: "Lucía Martín",
-            ambito: "Oporto",
-            estado: "pendiente",
-            vencimiento: "2026-10-28",
-            creado_en: new Date().toISOString(),
-          },
-          {
-            id: "task-figma-4",
-            viaje_id: tripId,
-            ciudad_id: "demo-lisboa",
-            titulo: "Reservar una cena en Alfama",
-            asignado_a: null,
-            asignado_a_nombre: "Lucía Martín",
-            creado_por_nombre: "Daniel López",
-            ambito: "Lisboa",
-            estado: "pendiente",
-            vencimiento: "2026-10-30",
-            creado_en: new Date().toISOString(),
-          },
-          {
-            id: "task-figma-5",
-            viaje_id: tripId,
-            ciudad_id: null,
-            titulo: "Preparar la lista de equipaje compartida",
-            asignado_a: null,
-            asignado_a_nombre: "Nicolás Martín",
-            creado_por_nombre: "Clara López",
-            ambito: "Viaje general",
-            estado: "pendiente",
-            vencimiento: null,
-            creado_en: new Date().toISOString(),
-          },
-          {
-            id: "task-figma-6",
-            viaje_id: tripId,
-            ciudad_id: null,
-            titulo: "Comprar billetes de avión a Lisboa",
-            asignado_a: null,
-            asignado_a_nombre: "Daniel López",
-            creado_por_nombre: "Clara López",
-            ambito: "Viaje general",
-            estado: "hecha",
-            vencimiento: "2026-10-15",
-            creado_en: new Date().toISOString(),
-          },
-        ])
+        setTasks([])
       }
     })
 
@@ -428,52 +348,7 @@ export function TasksAndIdeasView({
       if (dbIdeas && dbIdeas.length > 0) {
         setIdeas(dbIdeas)
       } else {
-        setIdeas([
-          {
-            id: "idea-figma-1",
-            viaje_id: tripId,
-            ambito: "Lisboa",
-            titulo: "Perderse por Alfama",
-            descripcion: "Un paseo sin prisas el 7 nov, con una parada para escuchar fado.",
-            icono: "monumento",
-            creado_por_nombre: "Lucía Martín",
-            convertida_en_tarea: false,
-            creado_en: new Date().toISOString(),
-          },
-          {
-            id: "idea-figma-2",
-            viaje_id: tripId,
-            ambito: "Sintra",
-            titulo: "Un paseo entre jardines",
-            descripcion: "El 9 nov, dejar un rato para recorrer el parque de Pena después del palacio.",
-            icono: "caminata",
-            creado_por_nombre: "Nicolás Martín",
-            convertida_en_tarea: false,
-            creado_en: new Date().toISOString(),
-          },
-          {
-            id: "idea-figma-3",
-            viaje_id: tripId,
-            ambito: "Oporto",
-            titulo: "Atardecer en la Ribeira",
-            descripcion: "Cruzar a Gaia y ver caer el sol junto al río. Un plan para el 11 nov.",
-            icono: "playa",
-            creado_por_nombre: "Daniel López",
-            convertida_en_tarea: false,
-            creado_en: new Date().toISOString(),
-          },
-          {
-            id: "idea-figma-4",
-            viaje_id: tripId,
-            ambito: "Viaje general",
-            titulo: "Un diario entre los cuatro",
-            descripcion: "Cada día, una foto y una frase de cada uno para recordar el viaje.",
-            icono: "cuaderno",
-            creado_por_nombre: "Clara López",
-            convertida_en_tarea: false,
-            creado_en: new Date().toISOString(),
-          },
-        ])
+        setIdeas([])
       }
     })
 

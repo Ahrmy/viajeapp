@@ -41,11 +41,11 @@ interface TripOverviewProps {
   onNavigateToAuth?: () => void
 }
 
-function calculateDaysRemaining(startDate?: string | null): number {
-  if (!startDate) return 21
+function calculateDaysRemaining(startDate?: string | null): number | null {
+  if (!startDate) return null
   try {
     const parts = startDate.split("-").map(Number)
-    if (parts.length !== 3) return 21
+    if (parts.length !== 3 || parts.some(isNaN)) return null
     const target = new Date(parts[0], parts[1] - 1, parts[2])
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -53,7 +53,7 @@ function calculateDaysRemaining(startDate?: string | null): number {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     return diffDays > 0 ? diffDays : 0
   } catch {
-    return 21
+    return null
   }
 }
 
@@ -68,7 +68,7 @@ function getMemberInitials(name?: string, email?: string): string {
   return email ? email.substring(0, 2).toUpperCase() : "??"
 }
 
-function formatDepartureDay(startDate?: string | null, fallback = "6 de noviembre"): string {
+function formatDepartureDay(startDate?: string | null, fallback = "Fechas por definir"): string {
   if (!startDate) return fallback
   try {
     const parts = startDate.split("-").map(Number)
