@@ -121,11 +121,19 @@ function mapCityToDestination(c: Ciudad): Destination {
   }
 
   let isReady = false
+  let isFavorite = false
   if (typeof window !== "undefined") {
-    const stored = localStorage.getItem(`viajeapp_city_ready_${c.id}`)
-    if (stored !== null) {
+    const storedReady = localStorage.getItem(`viajeapp_city_ready_${c.id}`)
+    if (storedReady !== null) {
       try {
-        isReady = JSON.parse(stored)
+        isReady = JSON.parse(storedReady)
+      } catch {}
+    }
+
+    const storedFav = localStorage.getItem(`viajeapp_city_favorite_${c.id}`)
+    if (storedFav !== null) {
+      try {
+        isFavorite = JSON.parse(storedFav)
       } catch {}
     }
   }
@@ -140,7 +148,7 @@ function mapCityToDestination(c: Ciudad): Destination {
     subtitle: c.subtitulo_cabecero || undefined,
     isReady,
     statusText: isReady ? "Todo listo" : "Por planificar",
-    isFavorite: true,
+    isFavorite,
   }
 }
 
@@ -643,6 +651,25 @@ export function TripOverview({
 
       setIsAddDestinationOpen(false)
     }
+  }
+
+  const handleToggleFavorite = (cityId: string) => {
+    setDestinationsList((prev) =>
+      prev.map((d) => {
+        if (d.id === cityId) {
+          const nextFav = !d.isFavorite
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`viajeapp_city_favorite_${cityId}`, JSON.stringify(nextFav))
+            } catch {
+              // ignore
+            }
+          }
+          return { ...d, isFavorite: nextFav }
+        }
+        return d
+      })
+    )
   }
 
   const { theme, setTheme } = useTheme()
@@ -1381,6 +1408,7 @@ export function TripOverview({
             <DestinationsSlider
               destinations={destinationsList}
               onAddDestination={() => setIsAddDestinationOpen(true)}
+              onToggleFavorite={handleToggleFavorite}
               onViewItinerary={() => {
                 setSelectedCityId(null)
                 setActiveSection("itinerario")

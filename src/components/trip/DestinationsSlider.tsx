@@ -51,6 +51,7 @@ interface DestinationsSliderProps {
   onAddDestination?: () => void
   onViewItinerary?: () => void
   onSelectDestination?: (destination: Destination) => void
+  onToggleFavorite?: (id: string) => void
 }
 
 export function DestinationsSlider({
@@ -58,6 +59,7 @@ export function DestinationsSlider({
   onAddDestination,
   onViewItinerary,
   onSelectDestination,
+  onToggleFavorite,
 }: DestinationsSliderProps) {
   const [destinations, setDestinations] = useState<Destination[]>(
     propsDestinations !== undefined ? propsDestinations : INITIAL_DESTINATIONS
@@ -72,10 +74,22 @@ export function DestinationsSlider({
 
   const toggleFavorite = (id: string) => {
     setDestinations((prev) =>
-      prev.map((dest) =>
-        dest.id === id ? { ...dest, isFavorite: !dest.isFavorite } : dest
-      )
+      prev.map((dest) => {
+        if (dest.id === id) {
+          const nextFav = !dest.isFavorite
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(`viajeapp_city_favorite_${id}`, JSON.stringify(nextFav))
+            } catch {
+              // ignore
+            }
+          }
+          return { ...dest, isFavorite: nextFav }
+        }
+        return dest
+      })
     )
+    onToggleFavorite?.(id)
   }
 
   return (
@@ -153,14 +167,18 @@ export function DestinationsSlider({
                     : "Marcar como favorito"
                 }
                 aria-label={`Favorito ${dest.name}`}
-                className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 sm:p-2 rounded-full bg-white/90 dark:bg-stone-900/90 backdrop-blur-xs text-stone-600 dark:text-stone-300 hover:scale-110 active:scale-95 transition-all shadow-xs cursor-pointer"
+                className={`absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-1.5 sm:p-2 rounded-full backdrop-blur-xs transition-all shadow-xs cursor-pointer hover:scale-110 active:scale-95 ${
+                  dest.isFavorite
+                    ? "bg-white/95 dark:bg-stone-900/95 text-rose-500"
+                    : "bg-white/80 dark:bg-stone-900/80 text-stone-400 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
+                }`}
               >
                 <svg
                   width="14"
                   height="14"
                   viewBox="0 0 24 24"
-                  fill={dest.isFavorite ? "#E11D48" : "none"}
-                  stroke={dest.isFavorite ? "#E11D48" : "currentColor"}
+                  fill={dest.isFavorite ? "currentColor" : "none"}
+                  stroke="currentColor"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"

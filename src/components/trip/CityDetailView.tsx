@@ -377,7 +377,20 @@ export function CityDetailView({
   // Extra activities added dynamically organized by day
   const [extraActivities, setExtraActivities] = useState<
     Record<number, ActivityItem[]>
-  >({})
+  >(() => {
+    if (typeof window !== "undefined" && cityId) {
+      try {
+        const raw = localStorage.getItem(`viajeapp_extra_activities_${cityId}`)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (parsed && typeof parsed === "object") return parsed
+        }
+      } catch (e) {
+        console.warn("Error leyendo extra activities de localStorage", e)
+      }
+    }
+    return {}
+  })
 
   useEffect(() => {
     if (activityTargetDay > daysCount) {
@@ -389,10 +402,28 @@ export function CityDetailView({
   useEffect(() => {
     if (!cityId) return
     let isMounted = true
+
+    // Recuperar cache local inmediatamente
+    let localCache: Record<number, ActivityItem[]> = {}
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(`viajeapp_extra_activities_${cityId}`)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (parsed && typeof parsed === "object") {
+            localCache = parsed
+            setExtraActivities(parsed)
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     tripService.getCityDetails(cityId).then((details) => {
       if (!isMounted) return
       if (details.activities && details.activities.length > 0) {
-        const byDay: Record<number, ActivityItem[]> = {}
+        const byDay: Record<number, ActivityItem[]> = { ...localCache }
         details.activities.forEach((a, idx) => {
           let day = 1
           if (a.fecha?.startsWith("dia-")) {
@@ -403,17 +434,24 @@ export function CityDetailView({
             if (parsed >= 1) day = parsed
           }
           if (!byDay[day]) byDay[day] = []
-          byDay[day].push({
-            id: a.id,
-            day,
-            time: a.fecha && !a.fecha.startsWith("dia-") ? `${10 + (idx % 8)}:00` : "17:00",
-            title: a.titulo,
-            location: `${cityName} · Plan personalizado`,
-          })
+          if (!byDay[day].some((item) => item.id === a.id)) {
+            byDay[day].push({
+              id: a.id,
+              day,
+              time: a.fecha && !a.fecha.startsWith("dia-") ? `${10 + (idx % 8)}:00` : "17:00",
+              title: a.titulo,
+              location: `${cityName} · Plan personalizado`,
+            })
+          }
         })
         setExtraActivities(byDay)
-      } else {
-        setExtraActivities({})
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(`viajeapp_extra_activities_${cityId}`, JSON.stringify(byDay))
+          } catch {
+            // ignore
+          }
+        }
       }
 
       if (details.transports && details.transports.length > 0) {
@@ -701,19 +739,29 @@ export function CityDetailView({
       }
     }
 
-    setExtraActivities((prev) => ({
-      ...prev,
-      [targetDay]: [
-        ...(prev[targetDay] || []),
-        {
-          id: newId,
-          day: targetDay,
-          time,
-          title,
-          location: loc,
-        },
-      ],
-    }))
+    setExtraActivities((prev) => {
+      const updated = {
+        ...prev,
+        [targetDay]: [
+          ...(prev[targetDay] || []),
+          {
+            id: newId,
+            day: targetDay,
+            time,
+            title,
+            location: loc,
+          },
+        ],
+      }
+      if (typeof window !== "undefined" && cityId) {
+        try {
+          localStorage.setItem(`viajeapp_extra_activities_${cityId}`, JSON.stringify(updated))
+        } catch {
+          // ignore
+        }
+      }
+      return updated
+    })
 
     setNewActivityTitle("")
     setNewActivityLocation("")
@@ -728,12 +776,22 @@ export function CityDetailView({
     if (actId) {
       await tripService.deleteActivity(actId)
     }
-    setExtraActivities((prev) => ({
-      ...prev,
-      [day]: (prev[day] || []).filter((item, idx) =>
-        actId ? item.id !== actId : idx !== index
-      ),
-    }))
+    setExtraActivities((prev) => {
+      const updated = {
+        ...prev,
+        [day]: (prev[day] || []).filter((item, idx) =>
+          actId ? item.id !== actId : idx !== index
+        ),
+      }
+      if (typeof window !== "undefined" && cityId) {
+        try {
+          localStorage.setItem(`viajeapp_extra_activities_${cityId}`, JSON.stringify(updated))
+        } catch {
+          // ignore
+        }
+      }
+      return updated
+    })
   }
 
   const totalActivitiesCount = useMemo(() => {

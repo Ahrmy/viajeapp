@@ -149,6 +149,9 @@ ALTER TABLE transportes ADD COLUMN IF NOT EXISTS notas text;
 ALTER TABLE transportes ADD COLUMN IF NOT EXISTS enlace_compra text;
 ALTER TABLE transportes ADD COLUMN IF NOT EXISTS escalas integer DEFAULT 0;
 
+-- Migraciones seguras para actividades
+ALTER TABLE actividades ALTER COLUMN fecha TYPE text;
+
 -- Tareas a dos niveles: del viaje (ciudad_id NULL) o de una ciudad
 CREATE TABLE IF NOT EXISTS tareas (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),

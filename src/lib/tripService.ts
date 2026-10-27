@@ -512,6 +512,29 @@ function saveStoredCityHotels(cityId: string, items: Hotel[]): void {
   }
 }
 
+function getStoredCityActivities(cityId: string): Actividad[] {
+  if (typeof window === "undefined" || !cityId) return [];
+  try {
+    const raw = localStorage.getItem(`viajeapp_activities_${cityId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.warn("Error leyendo actividades de localStorage", e);
+  }
+  return [];
+}
+
+function saveStoredCityActivities(cityId: string, items: Actividad[]): void {
+  if (typeof window === "undefined" || !cityId) return;
+  try {
+    localStorage.setItem(`viajeapp_activities_${cityId}`, JSON.stringify(items));
+  } catch (e) {
+    console.warn("Error guardando actividades en localStorage", e);
+  }
+}
+
 export const DEMO_MEMBERS: TripMember[] = [
   {
     id: "demo-member-1",
@@ -1591,6 +1614,7 @@ export const tripService = {
   }> {
     const storedTransports = getStoredCityTransports(cityId);
     const storedHotels = getStoredCityHotels(cityId);
+    const storedActivities = getStoredCityActivities(cityId);
 
     if (
       !isSupabaseConfigured ||
@@ -1614,8 +1638,16 @@ export const tripService = {
         }
       });
 
+      const memActivities = localActivities.filter((a) => a.ciudad_id === cityId);
+      const allActivities = [...storedActivities];
+      memActivities.forEach((ma) => {
+        if (!allActivities.some((sa) => sa.id === ma.id)) {
+          allActivities.push(ma);
+        }
+      });
+
       return {
-        activities: localActivities.filter((a) => a.ciudad_id === cityId),
+        activities: allActivities,
         hotels: allHotels,
         transports: allTransports,
       };
@@ -1645,14 +1677,31 @@ export const tripService = {
       const hotels =
         hotRes.data && hotRes.data.length > 0 ? hotRes.data : storedHotels;
 
+      const activitiesMap = new Map<string, Actividad>();
+      storedActivities.forEach((a) => activitiesMap.set(a.id, a));
+      if (actRes.data) {
+        actRes.data.forEach((a) => {
+          if (!activitiesMap.has(a.id)) {
+            activitiesMap.set(a.id, a);
+          }
+        });
+      }
+      const activities =
+        activitiesMap.size > 0
+          ? Array.from(activitiesMap.values())
+          : actRes.data ?? [];
+
       return {
-        activities: actRes.data ?? [],
+        activities,
         hotels,
         transports,
       };
     } catch {
       return {
-        activities: [],
+        activities:
+          storedActivities.length > 0
+            ? storedActivities
+            : localActivities.filter((a) => a.ciudad_id === cityId),
         hotels:
           storedHotels.length > 0
             ? storedHotels
@@ -2240,44 +2289,72 @@ export const tripService = {
     fecha?: string | null;
     costo_estimado?: number | null;
   }): Promise<{ data: Actividad | null; error?: string }> {
-    if (
+    const isLocal =
       !isSupabaseConfigured ||
       activity.ciudad_id.startsWith("demo-") ||
       activity.ciudad_id.startsWith("city-") ||
-      !isUuid(activity.ciudad_id)
-    ) {
-      const demoAct: Actividad = {
-        id: `act-${Date.now()}`,
-        ciudad_id: activity.ciudad_id,
-        titulo: activity.titulo,
-        fecha: activity.fecha ?? null,
-        costo_estimado: activity.costo_estimado ?? 0,
-        creado_en: new Date().toISOString(),
-      };
+      !isUuid(activity.ciudad_id);
+
+    const demoAct: Actividad = {
+      id: `act-${Date.now()}`,
+      ciudad_id: activity.ciudad_id,
+      titulo: activity.titulo,
+      fecha: activity.fecha ?? null,
+      costo_estimado: activity.costo_estimado ?? 0,
+      creado_en: new Date().toISOString(),
+    };
+
+    if (isLocal) {
       localActivities.push(demoAct);
+      const current = getStoredCityActivities(activity.ciudad_id);
+      saveStoredCityActivities(activity.ciudad_id, [...current, demoAct]);
       return { data: demoAct };
     }
 
     try {
+      // Si fecha es un string como "dia-1", la columna date de PostgreSQL fallará con error 22007.
+      // Insertamos una fecha YYYY-MM-DD válida o null para la base de datos remota
+      const isIsoDate =
+        activity.fecha &&
+        !activity.fecha.startsWith("dia-") &&
+        !isNaN(Date.parse(activity.fecha));
+      const supabaseFecha = isIsoDate
+        ? new Date(activity.fecha!).toISOString().slice(0, 10)
+        : null;
+
       const { data, error } = await supabase
         .from("actividades")
         .insert({
           ciudad_id: activity.ciudad_id,
           titulo: activity.titulo,
-          fecha: activity.fecha ?? null,
+          fecha: supabaseFecha,
           costo_estimado: activity.costo_estimado ?? 0,
         })
         .select()
         .single();
 
-      if (error) return { data: null, error: error.message };
-      return { data };
-    } catch (err: unknown) {
-      return {
-        data: null,
-        error:
-          err instanceof Error ? err.message : "Error al guardar actividad",
+      if (error) {
+        console.warn("Error guardando actividad en Supabase, usando local:", error.message);
+        localActivities.push(demoAct);
+        const current = getStoredCityActivities(activity.ciudad_id);
+        saveStoredCityActivities(activity.ciudad_id, [...current, demoAct]);
+        return { data: demoAct };
+      }
+
+      // Preservar la fecha original (ej: "dia-1") en el objeto devuelto y en la cache local
+      const savedAct: Actividad = {
+        ...data,
+        fecha: activity.fecha ?? data.fecha,
       };
+      const current = getStoredCityActivities(activity.ciudad_id);
+      saveStoredCityActivities(activity.ciudad_id, [...current, savedAct]);
+      return { data: savedAct };
+    } catch (err: unknown) {
+      console.warn("Excepción al guardar actividad en Supabase:", err);
+      localActivities.push(demoAct);
+      const current = getStoredCityActivities(activity.ciudad_id);
+      saveStoredCityActivities(activity.ciudad_id, [...current, demoAct]);
+      return { data: demoAct };
     }
   },
 
@@ -2285,25 +2362,38 @@ export const tripService = {
    * Elimina una actividad
    */
   async deleteActivity(id: string): Promise<{ success: boolean; error?: string }> {
-    if (
-      !isSupabaseConfigured ||
-      id.startsWith("act-") ||
-      id.startsWith("demo-") ||
-      !isUuid(id)
-    ) {
-      localActivities = localActivities.filter((a) => a.id !== id);
+    localActivities = localActivities.filter((a) => a.id !== id);
+
+    if (typeof window !== "undefined") {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("viajeapp_activities_")) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const list = JSON.parse(raw) as Actividad[];
+              if (Array.isArray(list) && list.some((item) => item.id === id)) {
+                const filtered = list.filter((item) => item.id !== id);
+                localStorage.setItem(key, JSON.stringify(filtered));
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Error eliminando actividad de localStorage", e);
+      }
+    }
+
+    if (!isSupabaseConfigured || id.startsWith("act-") || id.startsWith("demo-") || !isUuid(id)) {
       return { success: true };
     }
 
     try {
       const { error } = await supabase.from("actividades").delete().eq("id", id);
-      if (error) return { success: false, error: error.message };
+      if (error) console.warn("Error eliminando actividad en Supabase:", error.message);
       return { success: true };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : "Error al eliminar actividad",
-      };
+    } catch {
+      return { success: true };
     }
   },
 
