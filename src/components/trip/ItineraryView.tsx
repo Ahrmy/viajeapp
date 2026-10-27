@@ -3,7 +3,7 @@ import type { Destination } from "./DestinationsSlider"
 import type { TripOption } from "./Sidebar"
 import type { HeroData } from "./EditHeroModal"
 import { tripService } from "@/lib/tripService"
-import type { Transporte, TripMember, EstadoSeleccionTransporte } from "@/types/database"
+import type { Transporte, TripMember, EstadoSeleccionTransporte, Hotel } from "@/types/database"
 import {
   CreateTransportModal,
   getTransportIcon,
@@ -167,6 +167,7 @@ export function ItineraryView({
   const [cityToDelete, setCityToDelete] = useState<Destination | null>(null)
   const [showAddTransportNotice, setShowAddTransportNotice] = useState(false)
   const [cityTransports, setCityTransports] = useState<Record<string, Transporte[]>>({})
+  const [cityHotels, setCityHotels] = useState<Record<string, Hotel[]>>({})
 
   // Drag and Drop states
   const [draggedCityId, setDraggedCityId] = useState<string | null>(null)
@@ -176,7 +177,23 @@ export function ItineraryView({
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    setItems(destinations)
+    const mapped = destinations.map((d) => {
+      let isReady = d.isReady ?? false
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem(`viajeapp_city_ready_${d.id}`)
+        if (stored !== null) {
+          try {
+            isReady = JSON.parse(stored)
+          } catch {}
+        }
+      }
+      return {
+        ...d,
+        isReady,
+        statusText: isReady ? "Todo listo" : "Por planificar",
+      }
+    })
+    setItems(mapped)
   }, [destinations])
 
   useEffect(() => {
@@ -189,21 +206,54 @@ export function ItineraryView({
     let isMounted = true
     Promise.all(
       items.map(async (d) => {
-        const trs = await tripService.getTransports(d.id)
-        return { cityId: d.id, trs }
+        const [trs, hts] = await Promise.all([
+          tripService.getTransports(d.id),
+          tripService.getHotels(d.id),
+        ])
+        return { cityId: d.id, trs, hts }
       })
     ).then((results) => {
       if (!isMounted) return
-      const map: Record<string, Transporte[]> = {}
+      const trMap: Record<string, Transporte[]> = {}
+      const htMap: Record<string, Hotel[]> = {}
       results.forEach((r) => {
-        map[r.cityId] = r.trs
+        trMap[r.cityId] = r.trs
+        htMap[r.cityId] = r.hts
       })
-      setCityTransports(map)
+      setCityTransports(trMap)
+      setCityHotels(htMap)
     })
     return () => {
       isMounted = false
     }
   }, [items])
+
+  const handleToggleCityReady = (cityId: string) => {
+    const updated = items.map((c) => {
+      if (c.id === cityId) {
+        const nextReady = !c.isReady
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`viajeapp_city_ready_${cityId}`, JSON.stringify(nextReady))
+        }
+        return {
+          ...c,
+          isReady: nextReady,
+          statusText: nextReady ? "Todo listo" : "Por planificar",
+        }
+      }
+      return c
+    })
+    setItems(updated)
+    onReorderDestinations?.(updated)
+    const isNowReady = updated.find((c) => c.id === cityId)?.isReady
+    setFeedbackToast(
+      isNowReady
+        ? "Destino marcado como Todo listo"
+        : "Destino marcado como Por planificar"
+    )
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    toastTimeoutRef.current = setTimeout(() => setFeedbackToast(null), 3000)
+  }
 
   // Drag and Drop event handlers
   const handleDragStart = (e: React.DragEvent, cityId: string) => {
@@ -1175,12 +1225,12 @@ export function ItineraryView({
                   {/* Pin Dot */}
                   <div
                     className={`w-7 h-7 rounded-full flex items-center justify-center border-2 z-10 transition-colors shadow-2xs ${
-                      city.isReady || idx === 0
+                      city.isReady
                         ? "bg-[#245544] border-white dark:border-stone-900 text-white"
                         : "bg-white dark:bg-stone-800 border-[#CCD2CA] dark:border-stone-600 text-[#727B74] dark:text-stone-300"
                     }`}
                   >
-                    {city.isReady || idx === 0 ? (
+                    {city.isReady ? (
                       <svg
                         width="13"
                         height="13"
@@ -1276,40 +1326,58 @@ export function ItineraryView({
                               {city.name}
                             </h4>
 
-                            {city.isReady || idx === 0 ? (
-                              <span className="px-2.5 py-0.5 rounded-md bg-[#E8EFEA] dark:bg-emerald-950/60 text-[#245544] dark:text-[#A7F3D0] text-[11px] font-medium flex items-center gap-1">
-                                <svg
-                                  width="11"
-                                  height="11"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                                <span>Todo listo</span>
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-0.5 rounded-md bg-[#F2EFE9] dark:bg-stone-800 text-[#727B74] dark:text-stone-300 text-[11px] font-medium flex items-center gap-1">
-                                <svg
-                                  width="11"
-                                  height="11"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <circle cx="12" cy="12" r="10" />
-                                  <polyline points="12 6 12 12 16 14" />
-                                </svg>
-                                <span>Por planificar</span>
-                              </span>
-                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleToggleCityReady(city.id)
+                              }}
+                              title={
+                                city.isReady
+                                  ? "Estado: Todo listo (haz clic para cambiar a Por planificar)"
+                                  : "Estado: Por planificar (haz clic para cambiar a Todo listo)"
+                              }
+                              className={`px-2.5 py-0.5 rounded-md text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
+                                city.isReady
+                                  ? "bg-[#E8EFEA] hover:bg-[#d8e5dc] dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-[#245544] dark:text-[#A7F3D0]"
+                                  : "bg-[#F2EFE9] hover:bg-[#e6e2da] dark:bg-stone-800 dark:hover:bg-stone-700 text-[#727B74] dark:text-stone-300"
+                              }`}
+                            >
+                              {city.isReady ? (
+                                <>
+                                  <svg
+                                    width="11"
+                                    height="11"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                  <span>Todo listo</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg
+                                    width="11"
+                                    height="11"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                  </svg>
+                                  <span>Por planificar</span>
+                                </>
+                              )}
+                            </button>
                           </div>
 
                           {/* Drag Handle & Options */}
@@ -1436,6 +1504,52 @@ export function ItineraryView({
                                     type="button"
                                     onClick={() => {
                                       setActiveMenuCityId(null)
+                                      handleToggleCityReady(city.id)
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-xs text-[#203D34] dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer transition-colors"
+                                  >
+                                    {city.isReady ? (
+                                      <>
+                                        <svg
+                                          width="13"
+                                          height="13"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <circle cx="12" cy="12" r="10" />
+                                          <polyline points="12 6 12 12 16 14" />
+                                        </svg>
+                                        <span>Cambiar a "Por planificar"</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <svg
+                                          width="13"
+                                          height="13"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2.5"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        >
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                        <span>Marcar como "Todo listo"</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <div className="my-1 border-t border-[#DFE2DA] dark:border-stone-800" />
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveMenuCityId(null)
                                       onSelectCity(city.id)
                                     }}
                                     className="w-full px-3 py-2 text-left text-xs text-[#203D34] dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer"
@@ -1544,12 +1658,7 @@ export function ItineraryView({
                               if (preferred) {
                                 return `Preferido: ${preferred.nombre_linea || preferred.tipo.toUpperCase()}`
                               }
-                              if (transports.length > 0) {
-                                return `${transports.length} ${transports.length === 1 ? "opción" : "opciones"} de transporte`
-                              }
-                              return idx === 0
-                                ? "Preferido: Tren Intercidades · Comboios de Portugal"
-                                : `Traslado ${prevCityName ? `${prevCityName} → ` : ""}${city.name} pendiente`
+                              return `Traslado ${prevCityName ? `${prevCityName} → ` : ""}${city.name} pendiente`
                             })()}
                           </span>
                         </div>
@@ -1573,9 +1682,18 @@ export function ItineraryView({
                             <path d="M6 8v9" />
                           </svg>
                           <span className="truncate">
-                            {idx === 0
-                              ? `Seleccionado: ${city.name} Pessoa Hotel · 2 habitaciones`
-                              : "Alojamiento pendiente de seleccionar"}
+                            {(() => {
+                              const hotels = cityHotels[city.id] || []
+                              const chosen = hotels.find((h) => h.estado_seleccion === "elegido")
+                              if (chosen) {
+                                return `Elegido: ${chosen.nombre}${chosen.detalles ? ` · ${chosen.detalles}` : ""}`
+                              }
+                              const preferred = hotels.find((h) => h.estado_seleccion === "preferido")
+                              if (preferred) {
+                                return `Preferido: ${preferred.nombre}${preferred.detalles ? ` · ${preferred.detalles}` : ""}`
+                              }
+                              return "Alojamiento pendiente de seleccionar"
+                            })()}
                           </span>
                         </div>
                       </div>

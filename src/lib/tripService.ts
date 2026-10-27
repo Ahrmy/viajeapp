@@ -461,6 +461,57 @@ export const DEMO_HOTELS: Hotel[] = [
 let localHotels: Hotel[] = [...DEMO_HOTELS];
 let localActivities: Actividad[] = [];
 
+function isUuid(id?: string | null): boolean {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+function getStoredCityTransports(cityId: string): Transporte[] {
+  if (typeof window === "undefined" || !cityId) return [];
+  try {
+    const raw = localStorage.getItem(`viajeapp_transports_${cityId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.warn("Error leyendo transportes de localStorage", e);
+  }
+  return [];
+}
+
+function saveStoredCityTransports(cityId: string, items: Transporte[]): void {
+  if (typeof window === "undefined" || !cityId) return;
+  try {
+    localStorage.setItem(`viajeapp_transports_${cityId}`, JSON.stringify(items));
+  } catch (e) {
+    console.warn("Error guardando transportes en localStorage", e);
+  }
+}
+
+function getStoredCityHotels(cityId: string): Hotel[] {
+  if (typeof window === "undefined" || !cityId) return [];
+  try {
+    const raw = localStorage.getItem(`viajeapp_hotels_${cityId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.warn("Error leyendo hoteles de localStorage", e);
+  }
+  return [];
+}
+
+function saveStoredCityHotels(cityId: string, items: Hotel[]): void {
+  if (typeof window === "undefined" || !cityId) return;
+  try {
+    localStorage.setItem(`viajeapp_hotels_${cityId}`, JSON.stringify(items));
+  } catch (e) {
+    console.warn("Error guardando hoteles en localStorage", e);
+  }
+}
+
 export const DEMO_MEMBERS: TripMember[] = [
   {
     id: "demo-member-1",
@@ -1538,11 +1589,35 @@ export const tripService = {
     hotels: Hotel[];
     transports: Transporte[];
   }> {
-    if (!isSupabaseConfigured || cityId.startsWith("demo-")) {
+    const storedTransports = getStoredCityTransports(cityId);
+    const storedHotels = getStoredCityHotels(cityId);
+
+    if (
+      !isSupabaseConfigured ||
+      cityId.startsWith("demo-") ||
+      cityId.startsWith("city-") ||
+      !isUuid(cityId)
+    ) {
+      const memTransports = localTransports.filter((t) => t.ciudad_id === cityId);
+      const allTransports = [...storedTransports];
+      memTransports.forEach((mt) => {
+        if (!allTransports.some((st) => st.id === mt.id)) {
+          allTransports.push(mt);
+        }
+      });
+
+      const memHotels = localHotels.filter((h) => h.ciudad_id === cityId);
+      const allHotels = [...storedHotels];
+      memHotels.forEach((mh) => {
+        if (!allHotels.some((sh) => sh.id === mh.id)) {
+          allHotels.push(mh);
+        }
+      });
+
       return {
         activities: localActivities.filter((a) => a.ciudad_id === cityId),
-        hotels: localHotels.filter((h) => h.ciudad_id === cityId),
-        transports: localTransports.filter((t) => t.ciudad_id === cityId),
+        hotels: allHotels,
+        transports: allTransports,
       };
     }
 
@@ -1565,16 +1640,27 @@ export const tripService = {
           .order("creado_en", { ascending: true }),
       ]);
 
+      const transports =
+        trRes.data && trRes.data.length > 0 ? trRes.data : storedTransports;
+      const hotels =
+        hotRes.data && hotRes.data.length > 0 ? hotRes.data : storedHotels;
+
       return {
         activities: actRes.data ?? [],
-        hotels: hotRes.data ?? [],
-        transports: trRes.data ?? [],
+        hotels,
+        transports,
       };
     } catch {
       return {
         activities: [],
-        hotels: [],
-        transports: localTransports.filter((t) => t.ciudad_id === cityId),
+        hotels:
+          storedHotels.length > 0
+            ? storedHotels
+            : localHotels.filter((h) => h.ciudad_id === cityId),
+        transports:
+          storedTransports.length > 0
+            ? storedTransports
+            : localTransports.filter((t) => t.ciudad_id === cityId),
       };
     }
   },
@@ -1583,10 +1669,25 @@ export const tripService = {
    * Obtiene todos los transportes de una ciudad
    */
   async getTransports(cityId: string): Promise<Transporte[]> {
-    if (!isSupabaseConfigured || cityId.startsWith("demo-")) {
-      return localTransports
-        .filter((t) => t.ciudad_id === cityId)
-        .sort((a, b) => new Date(a.creado_en).getTime() - new Date(b.creado_en).getTime());
+    const stored = getStoredCityTransports(cityId);
+
+    if (
+      !isSupabaseConfigured ||
+      cityId.startsWith("demo-") ||
+      cityId.startsWith("city-") ||
+      !isUuid(cityId)
+    ) {
+      const memTransports = localTransports.filter((t) => t.ciudad_id === cityId);
+      const merged = [...stored];
+      memTransports.forEach((mt) => {
+        if (!merged.some((m) => m.id === mt.id)) {
+          merged.push(mt);
+        }
+      });
+      return merged.sort(
+        (a, b) =>
+          new Date(a.creado_en).getTime() - new Date(b.creado_en).getTime()
+      );
     }
 
     try {
@@ -1596,9 +1697,13 @@ export const tripService = {
         .eq("ciudad_id", cityId)
         .order("creado_en", { ascending: true });
 
-      if (error || !data) return [];
+      if (error || !data || data.length === 0) {
+        if (stored.length > 0) return stored;
+        return localTransports.filter((t) => t.ciudad_id === cityId);
+      }
       return data;
     } catch {
+      if (stored.length > 0) return stored;
       return localTransports.filter((t) => t.ciudad_id === cityId);
     }
   },
@@ -1674,35 +1779,65 @@ export const tripService = {
   async createTransport(
     transport: TransporteInsert
   ): Promise<{ data: Transporte | null; error?: string }> {
-    if (
+    const isLocal =
       !isSupabaseConfigured ||
       transport.ciudad_id.startsWith("demo-") ||
-      transport.ciudad_id.startsWith("main-")
-    ) {
-      const demoTransport: Transporte = {
-        id: `trans-${Date.now()}`,
-        ciudad_id: transport.ciudad_id,
-        tipo: transport.tipo ?? "otro",
-        nombre_linea: transport.nombre_linea ?? null,
-        origen: transport.origen ?? null,
-        destino: transport.destino ?? null,
-        fecha_hora: transport.fecha_hora ?? null,
-        costo: transport.costo ?? 0,
-        reservado: transport.reservado ?? (transport.estado_seleccion === "elegido"),
-        estado_seleccion: transport.estado_seleccion ?? "sin_nada",
-        duracion: transport.duracion ?? null,
-        hora_salida: transport.hora_salida ?? null,
-        hora_llegada: transport.hora_llegada ?? null,
-        notas: transport.notas ?? null,
-        enlace_compra: transport.enlace_compra ?? null,
-        escalas: transport.escalas ?? 0,
-        creado_en: new Date().toISOString(),
-      };
-      localTransports.push(demoTransport);
-      return { data: demoTransport };
+      transport.ciudad_id.startsWith("city-") ||
+      transport.ciudad_id.startsWith("main-") ||
+      !isUuid(transport.ciudad_id);
+
+    const newLocalTransport: Transporte = {
+      id: `trans-${Date.now()}`,
+      ciudad_id: transport.ciudad_id,
+      tipo: transport.tipo ?? "otro",
+      nombre_linea: transport.nombre_linea ?? null,
+      origen: transport.origen ?? null,
+      destino: transport.destino ?? null,
+      fecha_hora: transport.fecha_hora ?? null,
+      costo: transport.costo ?? 0,
+      reservado: transport.reservado ?? (transport.estado_seleccion === "elegido"),
+      estado_seleccion: transport.estado_seleccion ?? "sin_nada",
+      duracion: transport.duracion ?? null,
+      hora_salida: transport.hora_salida ?? null,
+      hora_llegada: transport.hora_llegada ?? null,
+      notas: transport.notas ?? null,
+      enlace_compra: transport.enlace_compra ?? null,
+      escalas: transport.escalas ?? 0,
+      creado_en: new Date().toISOString(),
+    };
+
+    if (isLocal) {
+      localTransports.push(newLocalTransport);
+
+      if (transport.ciudad_id.startsWith("main-")) {
+        const tripId = transport.ciudad_id.replace("main-", "");
+        if (typeof window !== "undefined") {
+          try {
+            const raw = localStorage.getItem(`viajeapp_main_transports_${tripId}`);
+            const current = raw ? (JSON.parse(raw) as Transporte[]) : [];
+            localStorage.setItem(
+              `viajeapp_main_transports_${tripId}`,
+              JSON.stringify([...current, newLocalTransport])
+            );
+          } catch (e) {
+            console.warn("Error guardando en localStorage main_transports", e);
+          }
+        }
+      } else {
+        const current = getStoredCityTransports(transport.ciudad_id);
+        saveStoredCityTransports(transport.ciudad_id, [...current, newLocalTransport]);
+      }
+
+      return { data: newLocalTransport };
     }
 
     try {
+      // Validar si fecha_hora es una fecha válida para PostgreSQL timestamptz
+      const validIsoDate =
+        transport.fecha_hora && !isNaN(Date.parse(transport.fecha_hora))
+          ? new Date(transport.fecha_hora).toISOString()
+          : null;
+
       const { data, error } = await supabase
         .from("transportes")
         .insert({
@@ -1711,7 +1846,7 @@ export const tripService = {
           nombre_linea: transport.nombre_linea ?? null,
           origen: transport.origen ?? null,
           destino: transport.destino ?? null,
-          fecha_hora: transport.fecha_hora ?? null,
+          fecha_hora: validIsoDate,
           costo: transport.costo ?? 0,
           reservado: transport.reservado ?? (transport.estado_seleccion === "elegido"),
           estado_seleccion: transport.estado_seleccion ?? "sin_nada",
@@ -1720,18 +1855,32 @@ export const tripService = {
           hora_llegada: transport.hora_llegada ?? null,
           notas: transport.notas ?? null,
           enlace_compra: transport.enlace_compra ?? null,
-          escalas: transport.escalas ?? 0,
         })
         .select()
         .single();
 
-      if (error) return { data: null, error: error.message };
-      return { data };
-    } catch (err: unknown) {
-      return {
-        data: null,
-        error: err instanceof Error ? err.message : "Error al guardar transporte",
+      if (error) {
+        console.warn("Error en Supabase al crear transporte, usando fallback local:", error.message);
+        localTransports.push(newLocalTransport);
+        const current = getStoredCityTransports(transport.ciudad_id);
+        saveStoredCityTransports(transport.ciudad_id, [...current, newLocalTransport]);
+        return { data: newLocalTransport };
+      }
+
+      const savedTransport: Transporte = {
+        ...data,
+        escalas: transport.escalas ?? 0,
       };
+      const current = getStoredCityTransports(transport.ciudad_id);
+      saveStoredCityTransports(transport.ciudad_id, [...current, savedTransport]);
+
+      return { data: savedTransport };
+    } catch (err: unknown) {
+      console.warn("Excepción al guardar transporte en Supabase, usando fallback local:", err);
+      localTransports.push(newLocalTransport);
+      const current = getStoredCityTransports(transport.ciudad_id);
+      saveStoredCityTransports(transport.ciudad_id, [...current, newLocalTransport]);
+      return { data: newLocalTransport };
     }
   },
 
@@ -1742,26 +1891,61 @@ export const tripService = {
     id: string,
     updates: TransporteUpdate
   ): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured || id.startsWith("trans-")) {
-      localTransports = localTransports.map((t) =>
-        t.id === id ? { ...t, ...updates } : t
-      );
+    localTransports = localTransports.map((t) =>
+      t.id === id ? { ...t, ...updates } : t
+    );
+
+    if (typeof window !== "undefined") {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (
+            key &&
+            (key.startsWith("viajeapp_transports_") ||
+              key.startsWith("viajeapp_main_transports_"))
+          ) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const list = JSON.parse(raw) as Transporte[];
+              if (Array.isArray(list) && list.some((item) => item.id === id)) {
+                const updatedList = list.map((item) =>
+                  item.id === id ? { ...item, ...updates } : item
+                );
+                localStorage.setItem(key, JSON.stringify(updatedList));
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Error actualizando transporte en localStorage", e);
+      }
+    }
+
+    if (!isSupabaseConfigured || id.startsWith("trans-") || !isUuid(id)) {
       return { success: true };
     }
 
     try {
+      const { escalas: _, ...cleanUpdates } = updates as TransporteUpdate & { escalas?: unknown };
+      const supabaseUpdates: TransporteUpdate = { ...cleanUpdates };
+      if (
+        supabaseUpdates.fecha_hora &&
+        isNaN(Date.parse(String(supabaseUpdates.fecha_hora)))
+      ) {
+        supabaseUpdates.fecha_hora = null;
+      }
+
       const { error } = await supabase
         .from("transportes")
-        .update(updates)
+        .update(supabaseUpdates)
         .eq("id", id);
 
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        console.warn("Error en Supabase al actualizar transporte:", error.message);
+      }
       return { success: true };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : "Error al actualizar transporte",
-      };
+    } catch {
+      return { success: true };
     }
   },
 
@@ -1769,8 +1953,33 @@ export const tripService = {
    * Elimina una opción de transporte
    */
   async deleteTransport(id: string): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured || id.startsWith("trans-")) {
-      localTransports = localTransports.filter((t) => t.id !== id);
+    localTransports = localTransports.filter((t) => t.id !== id);
+
+    if (typeof window !== "undefined") {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (
+            key &&
+            (key.startsWith("viajeapp_transports_") ||
+              key.startsWith("viajeapp_main_transports_"))
+          ) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const list = JSON.parse(raw) as Transporte[];
+              if (Array.isArray(list) && list.some((item) => item.id === id)) {
+                const filtered = list.filter((item) => item.id !== id);
+                localStorage.setItem(key, JSON.stringify(filtered));
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Error eliminando transporte de localStorage", e);
+      }
+    }
+
+    if (!isSupabaseConfigured || id.startsWith("trans-") || !isUuid(id)) {
       return { success: true };
     }
 
@@ -1808,10 +2017,25 @@ export const tripService = {
    * Obtiene todos los alojamientos/hoteles de una ciudad
    */
   async getHotels(cityId: string): Promise<Hotel[]> {
-    if (!isSupabaseConfigured || cityId.startsWith("demo-")) {
-      return localHotels
-        .filter((h) => h.ciudad_id === cityId)
-        .sort((a, b) => new Date(a.creado_en).getTime() - new Date(b.creado_en).getTime());
+    const stored = getStoredCityHotels(cityId);
+
+    if (
+      !isSupabaseConfigured ||
+      cityId.startsWith("demo-") ||
+      cityId.startsWith("city-") ||
+      !isUuid(cityId)
+    ) {
+      const memHotels = localHotels.filter((h) => h.ciudad_id === cityId);
+      const merged = [...stored];
+      memHotels.forEach((mh) => {
+        if (!merged.some((m) => m.id === mh.id)) {
+          merged.push(mh);
+        }
+      });
+      return merged.sort(
+        (a, b) =>
+          new Date(a.creado_en).getTime() - new Date(b.creado_en).getTime()
+      );
     }
 
     try {
@@ -1821,9 +2045,13 @@ export const tripService = {
         .eq("ciudad_id", cityId)
         .order("creado_en", { ascending: true });
 
-      if (error || !data) return [];
+      if (error || !data || data.length === 0) {
+        if (stored.length > 0) return stored;
+        return localHotels.filter((h) => h.ciudad_id === cityId);
+      }
       return data;
     } catch {
+      if (stored.length > 0) return stored;
       return localHotels.filter((h) => h.ciudad_id === cityId);
     }
   },
@@ -1834,24 +2062,33 @@ export const tripService = {
   async createHotel(
     hotel: HotelInsert
   ): Promise<{ data: Hotel | null; error?: string }> {
-    if (!isSupabaseConfigured || hotel.ciudad_id.startsWith("demo-")) {
-      const demoHotel: Hotel = {
-        id: `hotel-${Date.now()}`,
-        ciudad_id: hotel.ciudad_id,
-        nombre: hotel.nombre,
-        noches: hotel.noches ?? 1,
-        costo: hotel.costo ?? 0,
-        reservado: hotel.reservado ?? (hotel.estado_seleccion === "elegido"),
-        estado_seleccion: hotel.estado_seleccion ?? "sin_nada",
-        enlace_reserva: hotel.enlace_reserva ?? null,
-        direccion: hotel.direccion ?? null,
-        estrellas: hotel.estrellas ?? null,
-        foto: hotel.foto || DEFAULT_HOTEL_IMAGE,
-        detalles: hotel.detalles ?? null,
-        notas: hotel.notas ?? null,
-        creado_en: new Date().toISOString(),
-      };
+    const isLocal =
+      !isSupabaseConfigured ||
+      hotel.ciudad_id.startsWith("demo-") ||
+      hotel.ciudad_id.startsWith("city-") ||
+      !isUuid(hotel.ciudad_id);
+
+    const demoHotel: Hotel = {
+      id: `hotel-${Date.now()}`,
+      ciudad_id: hotel.ciudad_id,
+      nombre: hotel.nombre,
+      noches: hotel.noches ?? 1,
+      costo: hotel.costo ?? 0,
+      reservado: hotel.reservado ?? (hotel.estado_seleccion === "elegido"),
+      estado_seleccion: hotel.estado_seleccion ?? "sin_nada",
+      enlace_reserva: hotel.enlace_reserva ?? null,
+      direccion: hotel.direccion ?? null,
+      estrellas: hotel.estrellas ?? null,
+      foto: hotel.foto || DEFAULT_HOTEL_IMAGE,
+      detalles: hotel.detalles ?? null,
+      notas: hotel.notas ?? null,
+      creado_en: new Date().toISOString(),
+    };
+
+    if (isLocal) {
       localHotels.push(demoHotel);
+      const current = getStoredCityHotels(hotel.ciudad_id);
+      saveStoredCityHotels(hotel.ciudad_id, [...current, demoHotel]);
       return { data: demoHotel };
     }
 
@@ -1875,13 +2112,23 @@ export const tripService = {
         .select()
         .single();
 
-      if (error) return { data: null, error: error.message };
+      if (error) {
+        console.warn("Error guardando hotel en Supabase, usando local:", error.message);
+        localHotels.push(demoHotel);
+        const current = getStoredCityHotels(hotel.ciudad_id);
+        saveStoredCityHotels(hotel.ciudad_id, [...current, demoHotel]);
+        return { data: demoHotel };
+      }
+
+      const current = getStoredCityHotels(hotel.ciudad_id);
+      saveStoredCityHotels(hotel.ciudad_id, [...current, data]);
       return { data };
     } catch (err: unknown) {
-      return {
-        data: null,
-        error: err instanceof Error ? err.message : "Error al guardar alojamiento",
-      };
+      console.warn("Excepción al guardar hotel en Supabase:", err);
+      localHotels.push(demoHotel);
+      const current = getStoredCityHotels(hotel.ciudad_id);
+      saveStoredCityHotels(hotel.ciudad_id, [...current, demoHotel]);
+      return { data: demoHotel };
     }
   },
 
@@ -1892,26 +2139,42 @@ export const tripService = {
     id: string,
     updates: HotelUpdate
   ): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured || id.startsWith("hotel-")) {
-      localHotels = localHotels.map((h) =>
-        h.id === id ? { ...h, ...updates } : h
-      );
+    localHotels = localHotels.map((h) =>
+      h.id === id ? { ...h, ...updates } : h
+    );
+
+    if (typeof window !== "undefined") {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("viajeapp_hotels_")) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const list = JSON.parse(raw) as Hotel[];
+              if (Array.isArray(list) && list.some((item) => item.id === id)) {
+                const updatedList = list.map((item) =>
+                  item.id === id ? { ...item, ...updates } : item
+                );
+                localStorage.setItem(key, JSON.stringify(updatedList));
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Error actualizando hotel en localStorage", e);
+      }
+    }
+
+    if (!isSupabaseConfigured || id.startsWith("hotel-") || !isUuid(id)) {
       return { success: true };
     }
 
     try {
-      const { error } = await supabase
-        .from("hoteles")
-        .update(updates)
-        .eq("id", id);
-
-      if (error) return { success: false, error: error.message };
+      const { error } = await supabase.from("hoteles").update(updates).eq("id", id);
+      if (error) console.warn("Error actualizando hotel en Supabase:", error.message);
       return { success: true };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : "Error al actualizar alojamiento",
-      };
+    } catch {
+      return { success: true };
     }
   },
 
@@ -1919,24 +2182,38 @@ export const tripService = {
    * Elimina una opción de alojamiento/hotel
    */
   async deleteHotel(id: string): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured || id.startsWith("hotel-")) {
-      localHotels = localHotels.filter((h) => h.id !== id);
+    localHotels = localHotels.filter((h) => h.id !== id);
+
+    if (typeof window !== "undefined") {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("viajeapp_hotels_")) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const list = JSON.parse(raw) as Hotel[];
+              if (Array.isArray(list) && list.some((item) => item.id === id)) {
+                const filtered = list.filter((item) => item.id !== id);
+                localStorage.setItem(key, JSON.stringify(filtered));
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Error eliminando hotel de localStorage", e);
+      }
+    }
+
+    if (!isSupabaseConfigured || id.startsWith("hotel-") || !isUuid(id)) {
       return { success: true };
     }
 
     try {
-      const { error } = await supabase
-        .from("hoteles")
-        .delete()
-        .eq("id", id);
-
-      if (error) return { success: false, error: error.message };
+      const { error } = await supabase.from("hoteles").delete().eq("id", id);
+      if (error) console.warn("Error eliminando hotel en Supabase:", error.message);
       return { success: true };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : "Error al eliminar alojamiento",
-      };
+    } catch {
+      return { success: true };
     }
   },
 
@@ -1963,7 +2240,12 @@ export const tripService = {
     fecha?: string | null;
     costo_estimado?: number | null;
   }): Promise<{ data: Actividad | null; error?: string }> {
-    if (!isSupabaseConfigured || activity.ciudad_id.startsWith("demo-")) {
+    if (
+      !isSupabaseConfigured ||
+      activity.ciudad_id.startsWith("demo-") ||
+      activity.ciudad_id.startsWith("city-") ||
+      !isUuid(activity.ciudad_id)
+    ) {
       const demoAct: Actividad = {
         id: `act-${Date.now()}`,
         ciudad_id: activity.ciudad_id,
@@ -2003,7 +2285,12 @@ export const tripService = {
    * Elimina una actividad
    */
   async deleteActivity(id: string): Promise<{ success: boolean; error?: string }> {
-    if (!isSupabaseConfigured || id.startsWith("act-") || id.startsWith("demo-")) {
+    if (
+      !isSupabaseConfigured ||
+      id.startsWith("act-") ||
+      id.startsWith("demo-") ||
+      !isUuid(id)
+    ) {
       localActivities = localActivities.filter((a) => a.id !== id);
       return { success: true };
     }

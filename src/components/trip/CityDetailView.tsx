@@ -166,10 +166,37 @@ const MONTH_FULL = [
   "diciembre",
 ]
 
-function getDayDateInfo(dayIndex: number, startDateStr = "2026-11-06") {
+function getDayDateInfo(dayIndex: number, startDateStr?: string | null) {
+  if (!startDateStr || startDateStr.trim() === "" || startDateStr === "Fechas por definir") {
+    return {
+      hasDate: false,
+      weekdayShort: "DÍA",
+      badge: `${dayIndex + 1}`,
+      dateFull: "",
+      dayOfMonth: "",
+    }
+  }
   try {
     const parts = startDateStr.split("-").map(Number)
+    if (parts.length !== 3 || parts.some(isNaN)) {
+      return {
+        hasDate: false,
+        weekdayShort: "DÍA",
+        badge: `${dayIndex + 1}`,
+        dateFull: "",
+        dayOfMonth: "",
+      }
+    }
     const d = new Date(parts[0], parts[1] - 1, parts[2])
+    if (isNaN(d.getTime())) {
+      return {
+        hasDate: false,
+        weekdayShort: "DÍA",
+        badge: `${dayIndex + 1}`,
+        dateFull: "",
+        dayOfMonth: "",
+      }
+    }
     d.setDate(d.getDate() + dayIndex)
     const dayOfMonth = String(d.getDate()).padStart(2, "0")
     const weekdayShort = WEEKDAY_NAMES[d.getDay()]
@@ -177,15 +204,19 @@ function getDayDateInfo(dayIndex: number, startDateStr = "2026-11-06") {
     const monthShort = MONTH_SHORT[d.getMonth()]
     const monthFull = MONTH_FULL[d.getMonth()]
     return {
+      hasDate: true,
       weekdayShort,
       badge: `${dayOfMonth} ${monthShort}`,
       dateFull: `${weekdayFull}, ${d.getDate()} de ${monthFull}`,
+      dayOfMonth,
     }
   } catch {
     return {
+      hasDate: false,
       weekdayShort: "DÍA",
-      badge: `DÍA ${dayIndex + 1}`,
-      dateFull: `Día ${dayIndex + 1}`,
+      badge: `${dayIndex + 1}`,
+      dateFull: "",
+      dayOfMonth: "",
     }
   }
 }
@@ -203,7 +234,7 @@ interface CityDetailViewProps {
   cityData?: Destination
   destinations?: Destination[]
   tripName?: string
-  startDate?: string
+  startDate?: string | null
   travelersCount?: number
   isAdmin?: boolean
   onBack: () => void
@@ -227,7 +258,7 @@ export function CityDetailView({
   cityData,
   destinations,
   tripName = "Portugal en familia",
-  startDate = "2026-11-06",
+  startDate,
   travelersCount = 4,
   isAdmin = true,
   onBack,
@@ -285,7 +316,7 @@ export function CityDetailView({
       (next.nights || 1) > 1 ? (next.nights || 1) - 1 : 1
     )
     const formattedDates = formatSegmentDates(
-      startDate,
+      startDate || undefined,
       offsetDays,
       nextNights,
       false
@@ -794,7 +825,9 @@ export function CityDetailView({
                 const info = getDayDateInfo(d - 1, startDate)
                 return (
                   <option key={d} value={d}>
-                    Día {d} · {info.weekdayShort} {info.badge.split(" ")[0]}
+                    {info.hasDate
+                      ? `Día ${d} · ${info.weekdayShort} ${info.dayOfMonth}`
+                      : `Día ${d}`}
                   </option>
                 )
               })}
@@ -1124,7 +1157,7 @@ export function CityDetailView({
                 Aún no habéis añadido transportes para llegar a {cityName}
               </h4>
               <p className="text-xs text-[#727B74] dark:text-stone-400 mt-1">
-                Añadid opciones en tren, autobús, avión, ferry o coche para comparar horarios y precios, y marcad vuestra opción preferida o elegida.
+                Añadid opciones en vuelo (avión), tren, autobús, ferry o coche para comparar horarios y precios, y marcad vuestra opción preferida o elegida.
               </p>
             </div>
             <button
@@ -1770,10 +1803,10 @@ export function CityDetailView({
                 {/* Timeline Left Date Indicator */}
                 <div className="sm:w-24 shrink-0 flex sm:flex-col items-center sm:items-start gap-2 relative">
                   <span className="text-[10px] font-bold tracking-widest text-[#727B74] uppercase">
-                    {dateInfo.weekdayShort}
+                    {dateInfo.hasDate ? dateInfo.weekdayShort : "DÍA"}
                   </span>
                   <span className="px-2.5 py-1 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[11px] font-bold text-[#245544] dark:text-[#A7F3D0]">
-                    {dateInfo.badge}
+                    {dateInfo.hasDate ? dateInfo.badge : `${dayNum}`}
                   </span>
                 </div>
 
@@ -1782,7 +1815,9 @@ export function CityDetailView({
                   <div className="flex items-center justify-between border-b border-[#DFE2DA] dark:border-stone-800 pb-3">
                     <div>
                       <h3 className="font-serif text-lg font-normal text-[#203D34] dark:text-stone-100">
-                        Día {dayNum} · {dateInfo.dateFull}
+                        {dateInfo.hasDate
+                          ? `Día ${dayNum} · ${dateInfo.dateFull}`
+                          : `Día ${dayNum}`}
                       </h3>
                       <p className="text-xs text-[#727B74] dark:text-stone-400">
                         {dayData.subtitle}

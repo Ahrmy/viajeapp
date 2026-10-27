@@ -147,6 +147,7 @@ ALTER TABLE transportes ADD COLUMN IF NOT EXISTS hora_salida text;
 ALTER TABLE transportes ADD COLUMN IF NOT EXISTS hora_llegada text;
 ALTER TABLE transportes ADD COLUMN IF NOT EXISTS notas text;
 ALTER TABLE transportes ADD COLUMN IF NOT EXISTS enlace_compra text;
+ALTER TABLE transportes ADD COLUMN IF NOT EXISTS escalas integer DEFAULT 0;
 
 -- Tareas a dos niveles: del viaje (ciudad_id NULL) o de una ciudad
 CREATE TABLE IF NOT EXISTS tareas (

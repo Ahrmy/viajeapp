@@ -40,6 +40,15 @@ const TRANSPORT_TYPES: Array<{
   icon: (className?: string) => React.ReactNode
 }> = [
   {
+    id: "avion",
+    label: "Vuelo",
+    icon: (cls = "w-4 h-4") => (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
+      </svg>
+    ),
+  },
+  {
     id: "tren",
     label: "Tren",
     icon: (cls = "w-4 h-4") => (
@@ -65,15 +74,6 @@ const TRANSPORT_TYPES: Array<{
         <path d="M4 11h16" />
         <path d="m6 18-1 3" />
         <path d="m18 18 1 3" />
-      </svg>
-    ),
-  },
-  {
-    id: "avion",
-    label: "Avión",
-    icon: (cls = "w-4 h-4") => (
-      <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
       </svg>
     ),
   },
@@ -203,7 +203,11 @@ export function CreateTransportModal({
       await onSave({
         id: initialData?.id,
         tipo,
-        nombre_linea: nombreLinea.trim() || `${tipo.toUpperCase()} hacia ${destino || cityName || "Destino"}`,
+        nombre_linea:
+          nombreLinea.trim() ||
+          (tipo === "avion"
+            ? `Vuelo hacia ${destino || cityName || "Destino"}`
+            : `${tipo.toUpperCase()} hacia ${destino || cityName || "Destino"}`),
         origen: origen.trim() || "Origen",
         destino: destino.trim() || cityName || "Destino",
         hora_salida: horaSalida,
@@ -288,7 +292,15 @@ export function CreateTransportModal({
               required
               value={nombreLinea}
               onChange={(e) => setNombreLinea(e.target.value)}
-              placeholder="Ej: Comboios de Portugal · Intercidades, Iberia, Rede Expressos, Ferry..."
+              placeholder={
+                tipo === "avion"
+                  ? "Ej: Iberia · IB3166, Air China · CA908, Ryanair, Vueling..."
+                  : tipo === "tren"
+                  ? "Ej: Renfe AVE, Comboios de Portugal · Intercidades..."
+                  : tipo === "bus"
+                  ? "Ej: ALSA, Rede Expressos, FlixBus..."
+                  : "Ej: Compañía o nombre del servicio..."
+              }
               className="w-full px-3.5 py-2 text-xs rounded-lg border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#203D34] dark:text-stone-100 placeholder:text-stone-400 focus:outline-hidden focus:ring-1 focus:ring-[#245544]"
             />
           </div>

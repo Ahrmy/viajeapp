@@ -120,6 +120,16 @@ function mapCityToDestination(c: Ciudad): Destination {
     else img = DEFAULT_DESTINATION_IMAGE
   }
 
+  let isReady = false
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem(`viajeapp_city_ready_${c.id}`)
+    if (stored !== null) {
+      try {
+        isReady = JSON.parse(stored)
+      } catch {}
+    }
+  }
+
   return {
     id: c.id,
     name: c.nombre,
@@ -128,8 +138,8 @@ function mapCityToDestination(c: Ciudad): Destination {
     image: img,
     title: c.titulo_cabecero || undefined,
     subtitle: c.subtitulo_cabecero || undefined,
-    isReady: c.orden === 0,
-    statusText: c.orden === 0 ? "Todo listo" : "En progreso",
+    isReady,
+    statusText: isReady ? "Todo listo" : "Por planificar",
     isFavorite: true,
   }
 }
@@ -791,7 +801,7 @@ export function TripOverview({
             cityData={destinationsList.find((d) => d.id === selectedCityId)}
             destinations={destinationsList}
             tripName={currentTrip.name}
-            startDate={tripHeroes[currentTrip.id]?.startDate || "2026-11-06"}
+            startDate={tripHeroes[currentTrip.id]?.startDate}
             travelersCount={currentTravelersCount}
             isAdmin={isAdmin}
             onBack={() => {
