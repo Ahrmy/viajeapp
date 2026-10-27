@@ -3,7 +3,12 @@ import type { Destination } from "./DestinationsSlider"
 import type { TripOption } from "./Sidebar"
 import type { HeroData } from "./EditHeroModal"
 import { tripService } from "@/lib/tripService"
-import type { Transporte, TripMember } from "@/types/database"
+import type { Transporte, TripMember, EstadoSeleccionTransporte } from "@/types/database"
+import {
+  CreateTransportModal,
+  getTransportIcon,
+  type TransportFormData,
+} from "./CreateTransportModal"
 
 interface ItineraryViewProps {
   trip: TripOption
@@ -330,6 +335,200 @@ export function ItineraryView({
   const firstCityName = items[0]?.name || "Lisboa"
   const lastCityName = items[items.length - 1]?.name || "Oporto"
 
+  // Main Transports state & CRUD (Transportes principales)
+  const [mainTransports, setMainTransports] = useState<Transporte[]>([])
+  const [isAddTransportOpen, setIsAddTransportOpen] = useState(false)
+  const [editingTransport, setEditingTransport] = useState<Transporte | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+    tripService.getMainTransports(trip.id).then((data) => {
+      if (!isMounted) return
+      if (data && data.length > 0) {
+        setMainTransports(data)
+      } else {
+        const defaults: Transporte[] = [
+          {
+            id: `trans-main-ida-${trip.id}`,
+            ciudad_id: `main-${trip.id}`,
+            tipo: "avion",
+            nombre_linea: "Iberia · Turista",
+            origen: "Madrid · MAD",
+            destino: `${firstCityName} · LIS`,
+            hora_salida: "09:00",
+            hora_llegada: "09:25",
+            duracion: "1 h 25 min",
+            costo: 85 * effectiveTravelersCount,
+            reservado: false,
+            estado_seleccion: "sin_nada",
+            notas: "Equipaje de mano · Solo ida",
+            enlace_compra: "https://www.iberia.com",
+            fecha_hora: `Ida · ${trip.dates.split("–")[0]?.trim() || "6 nov"}`,
+            escalas: 0,
+            creado_en: new Date("2026-10-27T08:00:00Z").toISOString(),
+          },
+          {
+            id: `trans-main-vuelta-${trip.id}`,
+            ciudad_id: `main-${trip.id}`,
+            tipo: "avion",
+            nombre_linea: "Iberia · Turista",
+            origen: `${lastCityName} · OPO`,
+            destino: "Madrid · MAD",
+            hora_salida: "18:30",
+            hora_llegada: "20:40",
+            duracion: "1 h 10 min",
+            costo: 79 * effectiveTravelersCount,
+            reservado: false,
+            estado_seleccion: "sin_nada",
+            notas: "Equipaje de mano · Solo ida",
+            enlace_compra: "https://www.iberia.com",
+            fecha_hora: `Vuelta · ${trip.dates.split("–")[1]?.trim() || "13 nov 2026"}`,
+            escalas: 0,
+            creado_en: new Date("2026-10-27T08:05:00Z").toISOString(),
+          },
+        ]
+        setMainTransports(defaults)
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [trip.id, firstCityName, lastCityName, trip.dates, effectiveTravelersCount])
+
+  const handleSaveMainTransport = async (formData: TransportFormData) => {
+    if (formData.id) {
+      await tripService.updateTransport(formData.id, {
+        tipo: formData.tipo,
+        nombre_linea: formData.nombre_linea,
+        origen: formData.origen,
+        destino: formData.destino,
+        hora_salida: formData.hora_salida,
+        hora_llegada: formData.hora_llegada,
+        duracion: formData.duracion,
+        costo: formData.costo,
+        estado_seleccion: formData.estado_seleccion,
+        reservado: formData.estado_seleccion === "elegido",
+        notas: formData.notas,
+        enlace_compra: formData.enlace_compra,
+        fecha_hora: formData.fecha_hora,
+        escalas: formData.escalas ?? 0,
+      })
+
+      const updated = mainTransports.map((t) =>
+        t.id === formData.id
+          ? {
+              ...t,
+              tipo: formData.tipo,
+              nombre_linea: formData.nombre_linea,
+              origen: formData.origen,
+              destino: formData.destino,
+              hora_salida: formData.hora_salida,
+              hora_llegada: formData.hora_llegada,
+              duracion: formData.duracion,
+              costo: formData.costo,
+              estado_seleccion: formData.estado_seleccion,
+              reservado: formData.estado_seleccion === "elegido",
+              notas: formData.notas,
+              enlace_compra: formData.enlace_compra,
+              fecha_hora: formData.fecha_hora ?? null,
+              escalas: formData.escalas ?? 0,
+            }
+          : t
+      )
+      setMainTransports(updated)
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          `viajeapp_main_transports_${trip.id}`,
+          JSON.stringify(updated)
+        )
+      }
+    } else {
+      const res = await tripService.createTransport({
+        ciudad_id: `main-${trip.id}`,
+        tipo: formData.tipo,
+        nombre_linea: formData.nombre_linea,
+        origen: formData.origen,
+        destino: formData.destino,
+        hora_salida: formData.hora_salida,
+        hora_llegada: formData.hora_llegada,
+        duracion: formData.duracion,
+        costo: formData.costo,
+        estado_seleccion: formData.estado_seleccion,
+        reservado: formData.estado_seleccion === "elegido",
+        notas: formData.notas,
+        enlace_compra: formData.enlace_compra,
+        fecha_hora: formData.fecha_hora ?? null,
+        escalas: formData.escalas ?? 0,
+      })
+
+      const newTransport: Transporte = res.data || {
+        id: `trans-main-${Date.now()}`,
+        ciudad_id: `main-${trip.id}`,
+        tipo: formData.tipo,
+        nombre_linea: formData.nombre_linea,
+        origen: formData.origen,
+        destino: formData.destino,
+        hora_salida: formData.hora_salida,
+        hora_llegada: formData.hora_llegada,
+        duracion: formData.duracion,
+        costo: formData.costo,
+        estado_seleccion: formData.estado_seleccion,
+        reservado: formData.estado_seleccion === "elegido",
+        notas: formData.notas,
+        enlace_compra: formData.enlace_compra,
+        fecha_hora: formData.fecha_hora ?? null,
+        escalas: formData.escalas ?? 0,
+        creado_en: new Date().toISOString(),
+      }
+
+      const updated = [...mainTransports, newTransport]
+      setMainTransports(updated)
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          `viajeapp_main_transports_${trip.id}`,
+          JSON.stringify(updated)
+        )
+      }
+    }
+    setIsAddTransportOpen(false)
+    setEditingTransport(null)
+  }
+
+  const handleDeleteMainTransport = async (transportId: string) => {
+    await tripService.deleteTransport(transportId)
+    const updated = mainTransports.filter((t) => t.id !== transportId)
+    setMainTransports(updated)
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        `viajeapp_main_transports_${trip.id}`,
+        JSON.stringify(updated)
+      )
+    }
+  }
+
+  const handleToggleMainTransportSelection = async (
+    transportId: string,
+    newSelection: EstadoSeleccionTransporte
+  ) => {
+    await tripService.setTransportSelection(`main-${trip.id}`, transportId, newSelection)
+    const updated = mainTransports.map((t) =>
+      t.id === transportId
+        ? {
+            ...t,
+            estado_seleccion: newSelection,
+            reservado: newSelection === "elegido",
+          }
+        : t
+    )
+    setMainTransports(updated)
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        `viajeapp_main_transports_${trip.id}`,
+        JSON.stringify(updated)
+      )
+    }
+  }
+
   return (
     <div className="flex flex-col gap-8 w-full animate-in fade-in duration-200">
       {/* 1. Context / Breadcrumb Bar */}
@@ -597,7 +796,10 @@ export function ItineraryView({
 
           <button
             type="button"
-            onClick={() => setShowAddTransportNotice(true)}
+            onClick={() => {
+              setEditingTransport(null)
+              setIsAddTransportOpen(true)
+            }}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-[8px] bg-white dark:bg-stone-800 border border-[#CCD2CA] dark:border-stone-700 text-[#245544] dark:text-[#A7F3D0] text-xs font-semibold hover:bg-stone-50 dark:hover:bg-stone-700/60 transition-colors shadow-2xs cursor-pointer"
           >
             <svg
@@ -632,209 +834,303 @@ export function ItineraryView({
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Card Ida */}
-          <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 flex flex-col gap-4 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#E8EFEA] dark:bg-emerald-950/60 flex items-center justify-center text-[#245544] dark:text-[#A7F3D0]">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
-                  </svg>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100">
-                    Vuelo · Directo
-                  </span>
-                  <span className="text-[11px] text-[#727B74] dark:text-stone-400">
-                    Iberia · Turista
-                  </span>
-                </div>
-              </div>
-
-              <span className="px-2.5 py-1 rounded-md bg-[#E8EFEA] dark:bg-emerald-950/60 text-[#245544] dark:text-[#A7F3D0] text-[11px] font-medium">
-                Ida · {trip.dates.split("–")[0]?.trim() || "6 nov"}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <div className="flex flex-col">
-                <span className="text-xl font-bold text-[#203D34] dark:text-stone-100">
-                  09:00
-                </span>
-                <span className="text-xs font-medium text-[#727B74] dark:text-stone-300">
-                  Madrid · MAD
-                </span>
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  {trip.dates.split("–")[0]?.trim() || "6 nov"}
-                </span>
-              </div>
-
-              <div className="flex-1 flex flex-col items-center gap-1 px-2">
-                <span className="text-[11px] text-[#727B74] dark:text-stone-400 font-medium">
-                  1 h 25 min
-                </span>
-                <div className="w-full flex items-center gap-1">
-                  <div className="h-[1.5px] flex-1 bg-[#CCD2CA] dark:bg-stone-700" />
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="text-[#245544] dark:text-[#A7F3D0] rotate-90"
-                  >
-                    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
-                  </svg>
-                  <div className="h-[1.5px] flex-1 bg-[#CCD2CA] dark:bg-stone-700" />
-                </div>
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  Sin escalas
-                </span>
-              </div>
-
-              <div className="flex flex-col items-end">
-                <span className="text-xl font-bold text-[#203D34] dark:text-stone-100">
-                  09:25
-                </span>
-                <span className="text-xs font-medium text-[#727B74] dark:text-stone-300">
-                  {firstCityName} · LIS
-                </span>
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  {trip.dates.split("–")[0]?.trim() || "6 nov"}
-                </span>
-              </div>
-            </div>
-
-            <div className="border-t border-[#DFE2DA] dark:border-stone-800 pt-3 flex items-center justify-between text-xs">
-              <div className="flex flex-col">
-                <span className="font-semibold text-[#203D34] dark:text-stone-200">
-                  {85 * effectiveTravelersCount} € para los {effectiveTravelersCount} viajeros
-                </span>
-                <span className="text-[11px] text-[#727B74] dark:text-stone-400">
-                  Equipaje de mano · Solo ida
-                </span>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-lg font-bold text-[#203D34] dark:text-stone-100">
-                  85 €
-                </span>
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  por persona
-                </span>
-              </div>
-            </div>
+        {mainTransports.length === 0 ? (
+          <div className="p-8 rounded-xl border border-dashed border-[#CCD2CA] dark:border-stone-700 text-center flex flex-col items-center justify-center gap-2 bg-[#F9F8F5]/60 dark:bg-stone-900/40">
+            <p className="text-sm font-medium text-[#4D5B54] dark:text-stone-300">
+              No hay transportes principales configurados todavía.
+            </p>
+            <p className="text-xs text-[#727B74] dark:text-stone-400 max-w-md">
+              Añade los vuelos o billetes de tren internacionales de ida y vuelta para calcular presupuestos y tener los horarios a mano.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingTransport(null)
+                setIsAddTransportOpen(true)
+              }}
+              className="mt-2 px-4 py-2 rounded-lg bg-[#245544] text-white text-xs font-semibold hover:bg-[#1b4335] transition-colors shadow-xs cursor-pointer"
+            >
+              + Añadir primer transporte
+            </button>
           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {mainTransports.map((t, index) => {
+              const isPreferred = t.estado_seleccion === "preferido"
+              const isChosen = t.estado_seleccion === "elegido"
+              const segmentBadge =
+                t.fecha_hora ||
+                (index === 0
+                  ? `Ida · ${trip.dates.split("–")[0]?.trim() || "6 nov"}`
+                  : `Vuelta · ${trip.dates.split("–")[1]?.trim() || "13 nov 2026"}`)
 
-          {/* Card Vuelta */}
-          <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 flex flex-col gap-4 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#E8EFEA] dark:bg-emerald-950/60 flex items-center justify-center text-[#245544] dark:text-[#A7F3D0]">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
-                  </svg>
+              return (
+                <div
+                  key={t.id}
+                  className={`p-5 sm:p-6 rounded-xl bg-white dark:bg-stone-900 border transition-all flex flex-col justify-between gap-4 shadow-2xs relative ${
+                    isChosen
+                      ? "border-[#245544] ring-1 ring-[#245544] bg-[#F7FAF8] dark:bg-stone-900"
+                      : isPreferred
+                      ? "border-amber-400 ring-1 ring-amber-400/80 bg-amber-50/20 dark:bg-stone-900"
+                      : "border-[#DFE2DA] dark:border-stone-800 hover:border-stone-400"
+                  }`}
+                >
+                  {/* Top Bar: Icon + Service Name + Badges + Actions */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          isChosen
+                            ? "bg-[#245544] text-white"
+                            : isPreferred
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                            : "bg-[#E8EFEA] dark:bg-emerald-950/60 text-[#245544] dark:text-[#A7F3D0]"
+                        }`}
+                      >
+                        {getTransportIcon(t.tipo, "w-4 h-4")}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100 truncate">
+                          {t.tipo === "avion"
+                            ? "Vuelo"
+                            : t.tipo === "tren"
+                            ? "Tren"
+                            : t.tipo === "bus"
+                            ? "Autobús"
+                            : t.tipo === "ferry"
+                            ? "Ferry"
+                            : t.tipo === "coche"
+                            ? "Coche"
+                            : t.tipo.toUpperCase()}{" "}
+                          ·{" "}
+                          {t.escalas && t.escalas > 0
+                            ? t.escalas === 1
+                              ? "1 escala"
+                              : `${t.escalas} escalas`
+                            : "Directo"}
+                        </span>
+                        <span className="text-[11px] text-[#727B74] dark:text-stone-400 truncate">
+                          {t.nombre_linea || "Iberia · Turista"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                      {/* Estado de la opción: Elegido */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleToggleMainTransportSelection(
+                            t.id,
+                            isChosen ? "sin_nada" : "elegido"
+                          )
+                        }
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold transition-colors cursor-pointer shadow-2xs ${
+                          isChosen
+                            ? "bg-[#245544] text-white ring-1 ring-white/30"
+                            : "bg-[#F0EEE6] text-stone-700 dark:bg-stone-800 dark:text-stone-200 hover:bg-[#E8EFEA] hover:text-[#203D34]"
+                        }`}
+                        title={
+                          isChosen
+                            ? "Transporte elegido para el viaje (haz clic para desmarcar)"
+                            : "Marcar este transporte como elegido"
+                        }
+                      >
+                        {isChosen ? (
+                          <>
+                            <span>✓</span>
+                            <span>Elegido</span>
+                          </>
+                        ) : (
+                          <span>Elegir</span>
+                        )}
+                      </button>
+
+                      {/* Estado de la opción: Preferido */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleToggleMainTransportSelection(
+                            t.id,
+                            isPreferred ? "sin_nada" : "preferido"
+                          )
+                        }
+                        title={
+                          isPreferred
+                            ? "Quitar de preferidos"
+                            : "Marcar como transporte preferido de la familia"
+                        }
+                        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                          isPreferred
+                            ? "bg-amber-100 text-amber-700 ring-1 ring-amber-300 dark:bg-amber-950/60 dark:text-amber-300 shadow-xs"
+                            : "text-stone-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 border border-stone-200 dark:border-stone-700 hover:border-amber-300"
+                        }`}
+                      >
+                        <span className="text-xs">⭐</span>
+                      </button>
+
+                      {/* Trayecto / Fecha badge */}
+                      <span className="px-2.5 py-1 rounded-md bg-[#E8EFEA] dark:bg-emerald-950/60 text-[#245544] dark:text-[#A7F3D0] text-[11px] font-medium">
+                        {segmentBadge}
+                      </span>
+
+                      {/* Edit Button */}
+                      <button
+                        type="button"
+                        title="Editar transporte"
+                        onClick={() => {
+                          setEditingTransport(t)
+                          setIsAddTransportOpen(true)
+                        }}
+                        className="p-1 rounded text-stone-400 hover:text-[#203D34] dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                      >
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                      </button>
+
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        title="Eliminar transporte"
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `¿Eliminar el transporte "${t.nombre_linea || t.tipo}"?`
+                            )
+                          ) {
+                            handleDeleteMainTransport(t.id)
+                          }
+                        }}
+                        className="p-1 rounded text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                      >
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Schedule Timetable */}
+                  <div className="flex items-center justify-between gap-3 pt-2">
+                    <div className="flex flex-col">
+                      <span className="text-xl font-bold text-[#203D34] dark:text-stone-100">
+                        {t.hora_salida || "09:00"}
+                      </span>
+                      <span className="text-xs font-medium text-[#727B74] dark:text-stone-300">
+                        {t.origen || "Madrid · MAD"}
+                      </span>
+                      <span className="text-[10px] text-[#727B74] dark:text-stone-400">
+                        {segmentBadge.split("·")[1]?.trim() || "6 nov"}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 flex flex-col items-center gap-1 px-2">
+                      <span className="text-[11px] text-[#727B74] dark:text-stone-400 font-medium">
+                        {t.duracion || "1 h 25 min"}
+                      </span>
+                      <div className="w-full flex items-center gap-1">
+                        <div className="h-[1.5px] flex-1 bg-[#CCD2CA] dark:bg-stone-700" />
+                        <div className="text-[#245544] dark:text-[#A7F3D0] rotate-90">
+                          {getTransportIcon(t.tipo, "w-3.5 h-3.5")}
+                        </div>
+                        <div className="h-[1.5px] flex-1 bg-[#CCD2CA] dark:bg-stone-700" />
+                      </div>
+                      {t.escalas && t.escalas > 0 ? (
+                        <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                          <span>•</span>
+                          <span>
+                            {t.escalas === 1
+                              ? "1 escala"
+                              : `${t.escalas} escalas`}
+                          </span>
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-col items-end">
+                      <span className="text-xl font-bold text-[#203D34] dark:text-stone-100">
+                        {t.hora_llegada || "09:25"}
+                      </span>
+                      <span className="text-xs font-medium text-[#727B74] dark:text-stone-300">
+                        {t.destino || `${firstCityName} · LIS`}
+                      </span>
+                      <span className="text-[10px] text-[#727B74] dark:text-stone-400">
+                        {segmentBadge.split("·")[1]?.trim() || "6 nov"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Pricing and Purchase Link Row */}
+                  <div className="border-t border-[#DFE2DA] dark:border-stone-800 pt-3 flex items-center justify-between text-xs gap-3 flex-wrap">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-[#203D34] dark:text-stone-200">
+                        {t.costo || 0} € para los {effectiveTravelersCount} viajeros
+                      </span>
+                      <span className="text-[11px] text-[#727B74] dark:text-stone-400">
+                        {t.notas || "Equipaje de mano · Solo ida"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {t.enlace_compra && (
+                        <a
+                          href={t.enlace_compra}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#245544] hover:bg-[#1b4335] text-white shadow-2xs transition-colors shrink-0 group"
+                          title="Ir a comprar los billetes en la web oficial"
+                        >
+                          <span>Comprar billetes</span>
+                          <svg
+                            className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                            <polyline points="15 3 21 3 21 9" />
+                            <line x1="10" y1="14" x2="21" y2="3" />
+                          </svg>
+                        </a>
+                      )}
+
+                      <div className="flex flex-col items-end">
+                        <span className="text-lg font-bold text-[#203D34] dark:text-stone-100">
+                          {effectiveTravelersCount > 0
+                            ? Math.round((t.costo || 0) / effectiveTravelersCount)
+                            : t.costo || 0}{" "}
+                          €
+                        </span>
+                        <span className="text-[10px] text-[#727B74] dark:text-stone-400">
+                          por persona
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100">
-                    Vuelo · Directo
-                  </span>
-                  <span className="text-[11px] text-[#727B74] dark:text-stone-400">
-                    Iberia · Turista
-                  </span>
-                </div>
-              </div>
-
-              <span className="px-2.5 py-1 rounded-md bg-[#E8EFEA] dark:bg-emerald-950/60 text-[#245544] dark:text-[#A7F3D0] text-[11px] font-medium">
-                Vuelta · {trip.dates.split("–")[1]?.trim() || "13 nov"}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <div className="flex flex-col">
-                <span className="text-xl font-bold text-[#203D34] dark:text-stone-100">
-                  18:30
-                </span>
-                <span className="text-xs font-medium text-[#727B74] dark:text-stone-300">
-                  {lastCityName} · OPO
-                </span>
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  {trip.dates.split("–")[1]?.trim() || "13 nov"}
-                </span>
-              </div>
-
-              <div className="flex-1 flex flex-col items-center gap-1 px-2">
-                <span className="text-[11px] text-[#727B74] dark:text-stone-400 font-medium">
-                  1 h 10 min
-                </span>
-                <div className="w-full flex items-center gap-1">
-                  <div className="h-[1.5px] flex-1 bg-[#CCD2CA] dark:bg-stone-700" />
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="text-[#245544] dark:text-[#A7F3D0] rotate-90"
-                  >
-                    <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.3c.4-.2.6-.6.5-1.1z" />
-                  </svg>
-                  <div className="h-[1.5px] flex-1 bg-[#CCD2CA] dark:bg-stone-700" />
-                </div>
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  Sin escalas
-                </span>
-              </div>
-
-              <div className="flex flex-col items-end">
-                <span className="text-xl font-bold text-[#203D34] dark:text-stone-100">
-                  20:40
-                </span>
-                <span className="text-xs font-medium text-[#727B74] dark:text-stone-300">
-                  Madrid · MAD
-                </span>
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  {trip.dates.split("–")[1]?.trim() || "13 nov"}
-                </span>
-              </div>
-            </div>
-
-            <div className="border-t border-[#DFE2DA] dark:border-stone-800 pt-3 flex items-center justify-between text-xs">
-              <div className="flex flex-col">
-                <span className="font-semibold text-[#203D34] dark:text-stone-200">
-                  {79 * effectiveTravelersCount} € para los {effectiveTravelersCount} viajeros
-                </span>
-                <span className="text-[11px] text-[#727B74] dark:text-stone-400">
-                  Equipaje de mano · Solo ida
-                </span>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-lg font-bold text-[#203D34] dark:text-stone-100">
-                  79 €
-                </span>
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                  por persona
-                </span>
-              </div>
-            </div>
+              )
+            })}
           </div>
-        </div>
+        )}
 
         <div className="flex items-center gap-2 text-[11px] text-[#727B74] dark:text-stone-400 pt-1">
           <svg
@@ -1509,6 +1805,22 @@ export function ItineraryView({
           <span>{feedbackToast}</span>
         </div>
       )}
+
+      {/* Modal para añadir o editar transporte principal */}
+      <CreateTransportModal
+        isOpen={isAddTransportOpen}
+        cityName={firstCityName || trip.name}
+        titleBadge="Transportes principales"
+        modalTitle={editingTransport ? "Editar transporte principal" : "Añadir transporte principal"}
+        modalSubtitle="Configura los vuelos o billetes de ida y vuelta, define su prioridad y enlace de compra."
+        travelersCount={effectiveTravelersCount}
+        initialData={editingTransport}
+        onClose={() => {
+          setIsAddTransportOpen(false)
+          setEditingTransport(null)
+        }}
+        onSave={handleSaveMainTransport}
+      />
     </div>
   )
 }

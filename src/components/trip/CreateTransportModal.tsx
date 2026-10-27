@@ -18,11 +18,16 @@ export interface TransportFormData {
   estado_seleccion: EstadoSeleccionTransporte
   notas: string
   enlace_compra?: string | null
+  fecha_hora?: string | null
+  escalas?: number | null
 }
 
-interface CreateTransportModalProps {
+export interface CreateTransportModalProps {
   isOpen: boolean
-  cityName: string
+  cityName?: string
+  titleBadge?: string
+  modalTitle?: string
+  modalSubtitle?: string
   travelersCount?: number
   initialData?: Transporte | null
   onClose: () => void
@@ -77,7 +82,7 @@ const TRANSPORT_TYPES: Array<{
     label: "Ferry / Barco",
     icon: (cls = "w-4 h-4") => (
       <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 20a4 4 0 0 0 4-2 4 4 0 0 1 4-2 4 4 0 0 1 4 2 4 4 0 0 0 4 2 4 4 0 0 0 4-2" />
+        <path d="M2 20a4 4 0 0 0 4-2 4 4 0 0 1 4-2 4 4 0 0 0 4 2 4 4 0 0 0 4 2 4 4 0 0 0 4-2" />
         <path d="M4 14l1.5-6h13L20 14" />
         <path d="M12 3v5" />
         <path d="M8 8h8" />
@@ -109,9 +114,24 @@ const TRANSPORT_TYPES: Array<{
   },
 ]
 
+export function getTransportIcon(tipo: TipoTransporte, className = "w-4 h-4") {
+  const item = TRANSPORT_TYPES.find((t) => t.id === tipo)
+  if (item) return item.icon(className)
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="16" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
+    </svg>
+  )
+}
+
 export function CreateTransportModal({
   isOpen,
-  cityName,
+  cityName = "",
+  titleBadge,
+  modalTitle,
+  modalSubtitle,
   travelersCount = 4,
   initialData,
   onClose,
@@ -129,6 +149,9 @@ export function CreateTransportModal({
     useState<EstadoSeleccionTransporte>("sin_nada")
   const [notas, setNotas] = useState("")
   const [enlaceCompra, setEnlaceCompra] = useState("")
+  const [fechaHora, setFechaHora] = useState("")
+  const [tieneEscalas, setTieneEscalas] = useState(false)
+  const [numEscalas, setNumEscalas] = useState<number>(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Populate data when editing or opening
@@ -145,6 +168,10 @@ export function CreateTransportModal({
       setEstadoSeleccion(initialData.estado_seleccion || "sin_nada")
       setNotas(initialData.notas || "")
       setEnlaceCompra(initialData.enlace_compra || "")
+      setFechaHora(initialData.fecha_hora || "")
+      const esc = Number(initialData.escalas) || 0
+      setTieneEscalas(esc > 0)
+      setNumEscalas(esc > 0 ? esc : 1)
     } else {
       setTipo("tren")
       setNombreLinea("")
@@ -157,6 +184,9 @@ export function CreateTransportModal({
       setEstadoSeleccion("sin_nada")
       setNotas("")
       setEnlaceCompra("")
+      setFechaHora("")
+      setTieneEscalas(false)
+      setNumEscalas(1)
     }
   }, [initialData, cityName, isOpen])
 
@@ -173,9 +203,9 @@ export function CreateTransportModal({
       await onSave({
         id: initialData?.id,
         tipo,
-        nombre_linea: nombreLinea.trim() || `${tipo.toUpperCase()} hacia ${destino}`,
+        nombre_linea: nombreLinea.trim() || `${tipo.toUpperCase()} hacia ${destino || cityName || "Destino"}`,
         origen: origen.trim() || "Origen",
-        destino: destino.trim() || cityName,
+        destino: destino.trim() || cityName || "Destino",
         hora_salida: horaSalida,
         hora_llegada: horaLlegada,
         duracion: duracion.trim() || "Duración variable",
@@ -183,6 +213,8 @@ export function CreateTransportModal({
         estado_seleccion: estadoSeleccion,
         notas: notas.trim(),
         enlace_compra: enlaceCompra.trim() || null,
+        fecha_hora: fechaHora.trim() || null,
+        escalas: tieneEscalas ? numEscalas : 0,
       })
       onClose()
     } finally {
@@ -197,13 +229,13 @@ export function CreateTransportModal({
         <div className="flex items-start justify-between gap-4 border-b border-[#E6E2D8] dark:border-stone-800 pb-4">
           <div className="flex flex-col gap-1">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-[#245544] dark:text-emerald-400">
-              Transporte hacia {cityName}
+              {titleBadge || (cityName ? `Transporte hacia ${cityName}` : "Transportes principales")}
             </span>
             <h3 className="font-serif text-2xl text-[#203D34] dark:text-stone-100">
-              {initialData ? "Editar transporte" : "Añadir transporte"}
+              {modalTitle || (initialData ? "Editar transporte" : "Añadir transporte")}
             </h3>
             <p className="text-xs text-[#727B74] dark:text-stone-400">
-              Compara opciones de llegada (tren, bus, avión, ferry) y define su prioridad.
+              {modalSubtitle || "Compara opciones de llegada (tren, bus, avión, ferry) y define su prioridad."}
             </p>
           </div>
           <button
@@ -284,7 +316,21 @@ export function CreateTransportModal({
                 type="text"
                 value={destino}
                 onChange={(e) => setDestino(e.target.value)}
-                placeholder={cityName}
+                placeholder={cityName || "Ej: Lisboa, Oporto..."}
+                className="w-full px-3.5 py-2 text-xs rounded-lg border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#203D34] dark:text-stone-100 placeholder:text-stone-400 focus:outline-hidden focus:ring-1 focus:ring-[#245544]"
+              />
+            </div>
+
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-semibold text-[#203D34] dark:text-stone-200 flex items-center justify-between">
+                <span>Fecha o tipo de trayecto</span>
+                <span className="text-[10px] font-normal text-[#727B74] dark:text-stone-400">Opcional</span>
+              </label>
+              <input
+                type="text"
+                value={fechaHora}
+                onChange={(e) => setFechaHora(e.target.value)}
+                placeholder="Ej: Ida · 6 nov, Vuelta · 13 nov 2026..."
                 className="w-full px-3.5 py-2 text-xs rounded-lg border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#203D34] dark:text-stone-100 placeholder:text-stone-400 focus:outline-hidden focus:ring-1 focus:ring-[#245544]"
               />
             </div>
@@ -330,6 +376,67 @@ export function CreateTransportModal({
                 className="w-full px-3 py-2 text-xs rounded-lg border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#203D34] dark:text-stone-100 placeholder:text-stone-400 focus:outline-hidden focus:ring-1 focus:ring-[#245544]"
               />
             </div>
+          </div>
+
+          {/* Escalas */}
+          <div className="space-y-2.5 p-3.5 rounded-xl bg-[#F9F8F5] dark:bg-stone-800/40 border border-[#DFE2DA] dark:border-stone-700">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <label className="text-xs font-semibold text-[#203D34] dark:text-stone-200 block">
+                  ¿Tiene escalas?
+                </label>
+                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
+                  Indica si el trayecto es directo o con paradas
+                </span>
+              </div>
+              <div className="flex items-center gap-1 bg-white dark:bg-stone-900 p-1 rounded-lg border border-[#DFE2DA] dark:border-stone-700">
+                <button
+                  type="button"
+                  onClick={() => setTieneEscalas(false)}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    !tieneEscalas
+                      ? "bg-[#245544] text-white shadow-2xs"
+                      : "text-stone-600 dark:text-stone-300 hover:text-[#203D34]"
+                  }`}
+                >
+                  Directo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTieneEscalas(true)}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    tieneEscalas
+                      ? "bg-[#245544] text-white shadow-2xs"
+                      : "text-stone-600 dark:text-stone-300 hover:text-[#203D34]"
+                  }`}
+                >
+                  Con escalas
+                </button>
+              </div>
+            </div>
+
+            {tieneEscalas && (
+              <div className="pt-2.5 border-t border-[#DFE2DA] dark:border-stone-700 flex items-center justify-between gap-3 animate-in fade-in duration-150">
+                <span className="text-xs text-[#203D34] dark:text-stone-200 font-medium">
+                  ¿Cuántas escalas tiene?
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="6"
+                    value={numEscalas}
+                    onChange={(e) =>
+                      setNumEscalas(Math.max(1, parseInt(e.target.value) || 1))
+                    }
+                    className="w-16 px-2.5 py-1 text-center font-bold text-xs rounded-lg border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-[#203D34] dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-[#245544]"
+                  />
+                  <span className="text-xs text-[#4D5B54] dark:text-stone-300">
+                    {numEscalas === 1 ? "escala" : "escalas"}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 5. Coste y Desglose */}

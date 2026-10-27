@@ -228,6 +228,7 @@ export interface Database {
           hora_llegada?: string | null
           notas?: string | null
           enlace_compra?: string | null
+          escalas?: number | null
           creado_en: string
         }
         Insert: {
@@ -246,6 +247,7 @@ export interface Database {
           hora_llegada?: string | null
           notas?: string | null
           enlace_compra?: string | null
+          escalas?: number | null
           creado_en?: string
         }
         Update: {
@@ -264,6 +266,7 @@ export interface Database {
           hora_llegada?: string | null
           notas?: string | null
           enlace_compra?: string | null
+          escalas?: number | null
           creado_en?: string
         }
         Relationships: []

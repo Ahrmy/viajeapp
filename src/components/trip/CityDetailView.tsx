@@ -548,6 +548,7 @@ export function CityDetailView({
         reservado: data.estado_seleccion === "elegido",
         notas: data.notas,
         enlace_compra: data.enlace_compra,
+        escalas: data.escalas ?? 0,
       })
 
       setTransportsList((prev) =>
@@ -567,6 +568,7 @@ export function CityDetailView({
                 reservado: data.estado_seleccion === "elegido",
                 notas: data.notas,
                 enlace_compra: data.enlace_compra,
+                escalas: data.escalas ?? 0,
               }
             : t
         )
@@ -587,6 +589,7 @@ export function CityDetailView({
         reservado: data.estado_seleccion === "elegido",
         notas: data.notas,
         enlace_compra: data.enlace_compra,
+        escalas: data.escalas ?? 0,
       })
 
       if (res.data) {

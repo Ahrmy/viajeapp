@@ -509,7 +509,48 @@ export const DEMO_TRANSPORTS: Transporte[] = [
   },
 ];
 
-let localTransports: Transporte[] = [...DEMO_TRANSPORTS];
+export const DEMO_MAIN_TRANSPORTS: Transporte[] = [
+  {
+    id: "trans-main-ida",
+    ciudad_id: "main-transports",
+    tipo: "avion",
+    nombre_linea: "Iberia · Turista",
+    origen: "Madrid · MAD",
+    destino: "sintra · LIS",
+    hora_salida: "09:00",
+    hora_llegada: "09:25",
+    duracion: "1 h 25 min",
+    costo: 340,
+    reservado: false,
+    estado_seleccion: "sin_nada",
+    notas: "Equipaje de mano · Solo ida",
+    enlace_compra: "https://www.iberia.com",
+    fecha_hora: "Ida · 6",
+    escalas: 0,
+    creado_en: new Date("2026-10-27T08:00:00Z").toISOString(),
+  },
+  {
+    id: "trans-main-vuelta",
+    ciudad_id: "main-transports",
+    tipo: "avion",
+    nombre_linea: "Iberia · Turista",
+    origen: "sdfsFASGD AERG AGF · OPO",
+    destino: "Madrid · MAD",
+    hora_salida: "18:30",
+    hora_llegada: "20:40",
+    duracion: "1 h 10 min",
+    costo: 316,
+    reservado: false,
+    estado_seleccion: "sin_nada",
+    notas: "Equipaje de mano · Solo ida",
+    enlace_compra: "https://www.iberia.com",
+    fecha_hora: "Vuelta · 13 nov 2026",
+    escalas: 0,
+    creado_en: new Date("2026-10-27T08:05:00Z").toISOString(),
+  },
+];
+
+let localTransports: Transporte[] = [...DEMO_TRANSPORTS, ...DEMO_MAIN_TRANSPORTS];
 
 export const DEMO_HOTELS: Hotel[] = [
   {
@@ -1740,12 +1781,68 @@ export const tripService = {
   },
 
   /**
+   * Obtiene los transportes principales de un viaje (trayectos internacionales de ida y vuelta)
+   */
+  async getMainTransports(tripId: string): Promise<Transporte[]> {
+    const mainCityId = `main-${tripId}`;
+    const legacyMainCityId = "main-transports";
+
+    // Intentar leer de localStorage primero para persistencia instantánea en el navegador
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(`viajeapp_main_transports_${tripId}`);
+        if (stored) {
+          const parsed = JSON.parse(stored) as Transporte[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn("Error leyendo transportes principales de localStorage", e);
+      }
+    }
+
+    if (!isSupabaseConfigured || tripId.startsWith("demo-")) {
+      const filtered = localTransports.filter(
+        (t) => t.ciudad_id === mainCityId || t.ciudad_id === legacyMainCityId
+      );
+      if (filtered.length > 0) return filtered;
+      return [...DEMO_MAIN_TRANSPORTS];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("transportes")
+        .select("*")
+        .or(`ciudad_id.eq.${mainCityId},ciudad_id.eq.${legacyMainCityId}`)
+        .order("creado_en", { ascending: true });
+
+      if (error || !data || data.length === 0) {
+        const filtered = localTransports.filter(
+          (t) => t.ciudad_id === mainCityId || t.ciudad_id === legacyMainCityId
+        );
+        return filtered.length > 0 ? filtered : [...DEMO_MAIN_TRANSPORTS];
+      }
+      return data;
+    } catch {
+      const filtered = localTransports.filter(
+        (t) => t.ciudad_id === mainCityId || t.ciudad_id === legacyMainCityId
+      );
+      return filtered.length > 0 ? filtered : [...DEMO_MAIN_TRANSPORTS];
+    }
+  },
+
+  /**
    * Añade una opción de transporte a una ciudad
    */
   async createTransport(
     transport: TransporteInsert
   ): Promise<{ data: Transporte | null; error?: string }> {
-    if (!isSupabaseConfigured || transport.ciudad_id.startsWith("demo-")) {
+    if (
+      !isSupabaseConfigured ||
+      transport.ciudad_id.startsWith("demo-") ||
+      transport.ciudad_id.startsWith("main-")
+    ) {
       const demoTransport: Transporte = {
         id: `trans-${Date.now()}`,
         ciudad_id: transport.ciudad_id,
@@ -1762,6 +1859,7 @@ export const tripService = {
         hora_llegada: transport.hora_llegada ?? null,
         notas: transport.notas ?? null,
         enlace_compra: transport.enlace_compra ?? null,
+        escalas: transport.escalas ?? 0,
         creado_en: new Date().toISOString(),
       };
       localTransports.push(demoTransport);
@@ -1786,6 +1884,7 @@ export const tripService = {
           hora_llegada: transport.hora_llegada ?? null,
           notas: transport.notas ?? null,
           enlace_compra: transport.enlace_compra ?? null,
+          escalas: transport.escalas ?? 0,
         })
         .select()
         .single();
