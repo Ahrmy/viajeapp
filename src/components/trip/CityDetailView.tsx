@@ -190,133 +190,10 @@ function getDayDateInfo(dayIndex: number, startDateStr = "2026-11-06") {
   }
 }
 
-function getDefaultDayData(dayNum: number, cityName: string) {
-  switch (dayNum) {
-    case 1:
-      return {
-        subtitle: `Olá, ${cityName}. La ciudad nos espera.`,
-        activities: [
-          {
-            time: "11:46",
-            title: `Llegada a ${cityName} y traslado al centro`,
-            location: "Estação do Oriente · Av. Dom João II · 45 min",
-          },
-          {
-            time: "12:45",
-            title: "Primera comida en el Mercado da Ribeira",
-            location: "Av. 24 de Julho, 49 · 1 h",
-          },
-          {
-            time: "14:00",
-            title: "Dejar las maletas y hacer el check-in",
-            location: "Lisboa Pessoa Hotel · Rua da Oliveira ao Carmo, 8 · 1 h",
-          },
-          {
-            time: "16:00",
-            title: "Paseo por Baixa y la Praça do Comércio",
-            location: "Praça do Comércio · 1 h 30 min · A pie, sin prisas",
-          },
-          {
-            time: "19:00",
-            title: "Cena en familia por Chiado",
-            location: "Largo do Chiado · 1 h 30 min",
-          },
-        ],
-      }
-    case 2:
-      return {
-        subtitle: "Belém, entre descubrimientos y pasteles.",
-        activities: [
-          {
-            time: "09:00",
-            title: "Desayuno y tranvía hacia Belém",
-            location: "Praça da Figueira · Tranvía 15E · 1 h",
-          },
-          {
-            time: "10:00",
-            title: "Visitar el Monasterio de los Jerónimos",
-            location: "Praça do Império, 1400-206 · 1 h 30 min",
-          },
-          {
-            time: "12:00",
-            title: "Una parada dulce en Pastéis de Belém",
-            location: "Rua de Belém, 84–92 · 45 min",
-          },
-          {
-            time: "14:00",
-            title: "Jardines, río y Torre de Belém por fuera",
-            location: "Av. Brasília · 2 h · Paseo y tiempo libre",
-          },
-        ],
-      }
-    case 3:
-      return {
-        subtitle: "Del fondo del mar a los tejados de Alfama.",
-        activities: [
-          {
-            time: "09:30",
-            title: "Descubrir el Oceanário de Lisboa",
-            location: "Esplanada Dom Carlos I · Parque das Nações · 2 h 30 min",
-          },
-          {
-            time: "12:30",
-            title: "Comida junto al río y vuelta al centro",
-            location: "Alameda dos Oceanos · 1 h 30 min",
-          },
-          {
-            time: "15:00",
-            title: "Perderse por las calles de Alfama",
-            location: "Largo de São Miguel · 1 h 30 min · Paseo a pie",
-          },
-          {
-            time: "16:30",
-            title: "La luz de la tarde en Santa Luzia",
-            location: "Miradouro de Santa Luzia · Largo de Santa Luzia · 45 min",
-          },
-        ],
-      }
-    case 4:
-      return {
-        subtitle: `Un último café. Próxima parada.`,
-        activities: [
-          {
-            time: "08:30",
-            title: `Desayunar y despedirse de ${cityName}`,
-            location: "Lisboa Pessoa Hotel · Rua da Oliveira ao Carmo, 8 · 45 min",
-          },
-          {
-            time: "09:30",
-            title: "Check-out y paseo hasta la estación",
-            location: "Hotel → Estación central · 45 min",
-          },
-          {
-            time: "10:41",
-            title: "Tren a la siguiente parada · Continuamos el viaje",
-            location: "Estación de trenes · 40 min · Continuación del viaje",
-          },
-        ],
-      }
-    default:
-      return {
-        subtitle: `Tiempo libre para descubrir más de ${cityName}.`,
-        activities: [
-          {
-            time: "10:00",
-            title: `Paseo y exploración por barrios locales`,
-            location: `${cityName} · Tiempo sin prisas · 2 h`,
-          },
-          {
-            time: "13:30",
-            title: "Almuerzo y degustación gastronómica",
-            location: "Taberna tradicional · 1 h 30 min",
-          },
-          {
-            time: "17:00",
-            title: "Atardecer y vistas panorámicas",
-            location: "Mirador de la ciudad · 1 h",
-          },
-        ],
-      }
+function getDefaultDayData(_dayNum: number, _cityName: string) {
+  return {
+    subtitle: "Aún no hay actividades planificadas para este día.",
+    activities: [] as Array<{ time: string; title: string; location: string }>,
   }
 }
 
@@ -458,17 +335,13 @@ export function CityDetailView({
   const [editingHotel, setEditingHotel] = useState<Hotel | null>(null)
 
   // Draft activity form state
-  const [isActivityFormOpen, setIsActivityFormOpen] = useState(true)
+  const [isActivityFormOpen, setIsActivityFormOpen] = useState(false)
   const [activityTargetDay, setActivityTargetDay] = useState<number>(() =>
     Math.min(2, Math.max(1, cityData?.nights || 3))
   )
-  const [newActivityTime, setNewActivityTime] = useState("17:00")
-  const [newActivityTitle, setNewActivityTitle] = useState(
-    "Atardecer junto al Tajo"
-  )
-  const [newActivityLocation, setNewActivityLocation] = useState(
-    "Doca de Santo Amaro, Alcântara · 1 h"
-  )
+  const [newActivityTime, setNewActivityTime] = useState("")
+  const [newActivityTitle, setNewActivityTitle] = useState("")
+  const [newActivityLocation, setNewActivityLocation] = useState("")
 
   // Extra activities added dynamically organized by day
   const [extraActivities, setExtraActivities] = useState<

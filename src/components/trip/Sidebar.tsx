@@ -189,7 +189,7 @@ export function Sidebar({
       className={`shrink-0 h-full min-h-screen flex flex-col justify-between border-r border-[#E6E2D8] dark:border-stone-800 bg-[#F7F5F0] dark:bg-[#141C17] transition-all duration-300 ease-in-out select-none ${
         isCollapsed
           ? "w-full lg:w-[72px] px-2.5 py-6"
-          : "w-full lg:w-[248px] p-6 sm:p-7 lg:py-8 lg:px-5"
+          : "w-full lg:w-[272px] p-6 sm:p-7 lg:py-8 lg:px-5"
       }`}
     >
       {/* Top Part: Brand, Trip Selector & Navigation */}
@@ -574,7 +574,7 @@ export function Sidebar({
             isCollapsed ? "flex-col gap-2 p-1.5" : "p-2"
           }`}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <Avatar className="h-[36px] w-[36px] border-2 border-white dark:border-stone-700 shadow-2xs shrink-0">
               <AvatarFallback className="bg-[#E8EFEA] text-[#245544] font-medium text-xs">
                 {userName
@@ -590,7 +590,10 @@ export function Sidebar({
             </Avatar>
             {!isCollapsed && (
               <div className="flex flex-col min-w-0">
-                <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100 truncate">
+                <span
+                  title={userName}
+                  className="text-xs font-semibold text-[#203D34] dark:text-stone-100 truncate"
+                >
                   {userName}
                 </span>
                 <span className="text-[10px] text-[#727B74] dark:text-stone-400">
@@ -606,7 +609,7 @@ export function Sidebar({
               onClick={onSignOut}
               title="Cerrar sesión"
               aria-label="Cerrar sesión"
-              className="p-1.5 text-[#727B74] hover:text-[#203D34] dark:hover:text-stone-200 transition-colors cursor-pointer rounded-sm"
+              className="p-1.5 ml-1 shrink-0 text-[#727B74] hover:text-[#203D34] dark:hover:text-stone-200 transition-colors cursor-pointer rounded-sm"
             >
               <svg
                 width="16"

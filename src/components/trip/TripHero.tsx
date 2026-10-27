@@ -29,12 +29,11 @@ export function TripHero({
     startDate: initialData?.startDate,
     endDate: initialData?.endDate,
     travelersCount: initialData?.travelersCount,
-    title: initialData?.title || "Hay viajes que ya se sienten cerca.",
+    title: initialData?.title || "",
     subtitle:
-      initialData?.subtitle ||
-      "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.",
+      initialData?.subtitle || "",
     image: initialData?.image || DEFAULT_COVER_IMAGE,
-    locationBadge: initialData?.locationBadge || "Lisboa, Portugal",
+    locationBadge: initialData?.locationBadge || "",
   })
 
   const [internalIsEditOpen, setInternalIsEditOpen] = useState(false)
@@ -47,12 +46,11 @@ export function TripHero({
       startDate: initialData?.startDate,
       endDate: initialData?.endDate,
       travelersCount: initialData?.travelersCount,
-      title: initialData?.title || "Hay viajes que ya se sienten cerca.",
+      title: initialData?.title || "",
       subtitle:
-        initialData?.subtitle ||
-        "Lisboa, Sintra y Oporto. Un camino para disfrutar juntos.",
+        initialData?.subtitle || "",
       image: initialData?.image || DEFAULT_COVER_IMAGE,
-      locationBadge: initialData?.locationBadge || "Lisboa, Portugal",
+      locationBadge: initialData?.locationBadge || "",
     })
   }, [tripName, initialData])
 
@@ -93,7 +91,7 @@ export function TripHero({
           />
 
           {/* Top-left location badge */}
-          <div className="absolute top-4 left-4 z-10">
+          {heroData.locationBadge ? (<div className="absolute top-4 left-4 z-10">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/92 dark:bg-stone-900/85 backdrop-blur-xs shadow-xs text-[10px] font-medium text-[#203D34] dark:text-stone-100">
               <svg
                 width="11"
@@ -110,7 +108,7 @@ export function TripHero({
               </svg>
               <span>{heroData.locationBadge}</span>
             </div>
-          </div>
+          </div>) : null}
 
           {/* Top-right Edit button with pencil icon (Only visible for admin creator) */}
           {isAdmin && (
