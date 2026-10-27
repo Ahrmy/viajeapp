@@ -309,6 +309,8 @@ export interface Database {
           titulo: string | null
           monto: number
           pagado_por: string | null
+          pagado_por_nombre?: string | null
+          notas?: string | null
           estado: EstadoGasto
           referencia_transporte_id: string | null
           referencia_hotel_id: string | null
@@ -322,6 +324,8 @@ export interface Database {
           titulo?: string | null
           monto: number
           pagado_por?: string | null
+          pagado_por_nombre?: string | null
+          notas?: string | null
           estado?: EstadoGasto
           referencia_transporte_id?: string | null
           referencia_hotel_id?: string | null
@@ -335,10 +339,57 @@ export interface Database {
           titulo?: string | null
           monto?: number
           pagado_por?: string | null
+          pagado_por_nombre?: string | null
+          notas?: string | null
           estado?: EstadoGasto
           referencia_transporte_id?: string | null
           referencia_hotel_id?: string | null
           referencia_actividad_id?: string | null
+          creado_en?: string
+        }
+        Relationships: []
+      }
+      ideas: {
+        Row: {
+          id: string
+          viaje_id: string
+          ciudad_id: string | null
+          ambito: string
+          titulo: string
+          descripcion: string | null
+          icono: string | null
+          foto_url: string | null
+          creado_por: string | null
+          creado_por_nombre: string | null
+          convertida_en_tarea: boolean
+          creado_en: string
+        }
+        Insert: {
+          id?: string
+          viaje_id: string
+          ciudad_id?: string | null
+          ambito?: string
+          titulo: string
+          descripcion?: string | null
+          icono?: string | null
+          foto_url?: string | null
+          creado_por?: string | null
+          creado_por_nombre?: string | null
+          convertida_en_tarea?: boolean
+          creado_en?: string
+        }
+        Update: {
+          id?: string
+          viaje_id?: string
+          ciudad_id?: string | null
+          ambito?: string
+          titulo?: string
+          descripcion?: string | null
+          icono?: string | null
+          foto_url?: string | null
+          creado_por?: string | null
+          creado_por_nombre?: string | null
+          convertida_en_tarea?: boolean
           creado_en?: string
         }
         Relationships: []
@@ -447,5 +498,29 @@ export interface TripMember {
   estado: EstadoMiembro
   invitado_en: string
   avatar_url?: string | null
+}
+
+export type TipoIconoIdea = "cuaderno" | "caminata" | "playa" | "montana" | "monumento"
+
+export interface IdeaViaje {
+  id: string
+  viaje_id: string
+  ciudad_id?: string | null
+  ambito?: string
+  titulo: string
+  descripcion?: string
+  icono?: TipoIconoIdea | string | null
+  foto_url?: string | null
+  creado_por?: string | null
+  creado_por_nombre?: string
+  convertida_en_tarea?: boolean
+  creado_en?: string
+}
+
+export interface TareaConDetalles extends Tarea {
+  creado_por?: string | null
+  creado_por_nombre?: string | null
+  asignado_a_nombre?: string | null
+  ambito?: string | null
 }
 

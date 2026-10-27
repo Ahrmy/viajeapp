@@ -24,6 +24,7 @@ import type {
   RolMiembro,
   EstadoMiembro,
   TripMember,
+  IdeaViaje,
 } from "@/types/database";
 
 // ============================================================
@@ -193,7 +194,7 @@ export const DEMO_TASKS: Tarea[] = [
     ciudad_id: "demo-sintra",
     titulo: "Elegir alojamiento en Sintra",
     asignado_a: null,
-    estado: "pendiente",
+    estado: "en_curso",
     vencimiento: "2026-10-25",
     creado_en: new Date().toISOString(),
   },
@@ -205,6 +206,36 @@ export const DEMO_TASKS: Tarea[] = [
     asignado_a: null,
     estado: "pendiente",
     vencimiento: "2026-10-28",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "task-4",
+    viaje_id: DEMO_TRIP_ID,
+    ciudad_id: "demo-lisboa",
+    titulo: "Reservar una cena en Alfama",
+    asignado_a: null,
+    estado: "pendiente",
+    vencimiento: "2026-10-30",
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "task-5",
+    viaje_id: DEMO_TRIP_ID,
+    ciudad_id: null,
+    titulo: "Preparar la lista de equipaje compartida",
+    asignado_a: null,
+    estado: "pendiente",
+    vencimiento: null,
+    creado_en: new Date().toISOString(),
+  },
+  {
+    id: "task-6",
+    viaje_id: DEMO_TRIP_ID,
+    ciudad_id: null,
+    titulo: "Comprar billetes de avión a Lisboa",
+    asignado_a: null,
+    estado: "hecha",
+    vencimiento: "2026-10-15",
     creado_en: new Date().toISOString(),
   },
   // Tareas para Un verano en Menorca
@@ -242,6 +273,55 @@ export const DEMO_TASKS: Tarea[] = [
 ];
 
 let localTasks: Tarea[] = [...DEMO_TASKS];
+
+export const DEMO_IDEAS: IdeaViaje[] = [
+  {
+    id: "idea-1",
+    viaje_id: DEMO_TRIP_ID,
+    ambito: "Lisboa",
+    titulo: "Perderse por Alfama",
+    descripcion: "Un paseo sin prisas el 7 nov, con una parada para escuchar fado.",
+    icono: "monumento",
+    creado_por_nombre: "Lucía Martín",
+    convertida_en_tarea: false,
+    creado_en: new Date(Date.now() - 86400000 * 2).toISOString(),
+  },
+  {
+    id: "idea-2",
+    viaje_id: DEMO_TRIP_ID,
+    ambito: "Sintra",
+    titulo: "Un paseo entre jardines",
+    descripcion: "El 9 nov, dejar un rato para recorrer el parque de Pena después del palacio.",
+    icono: "caminata",
+    creado_por_nombre: "Nicolás Martín",
+    convertida_en_tarea: false,
+    creado_en: new Date(Date.now() - 86400000 * 3).toISOString(),
+  },
+  {
+    id: "idea-3",
+    viaje_id: DEMO_TRIP_ID,
+    ambito: "Oporto",
+    titulo: "Atardecer en la Ribeira",
+    descripcion: "Cruzar a Gaia y ver caer el sol junto al río. Un plan para el 11 nov.",
+    icono: "playa",
+    creado_por_nombre: "Daniel López",
+    convertida_en_tarea: false,
+    creado_en: new Date(Date.now() - 86400000 * 4).toISOString(),
+  },
+  {
+    id: "idea-4",
+    viaje_id: DEMO_TRIP_ID,
+    ambito: "Viaje general",
+    titulo: "Un diario entre los cuatro",
+    descripcion: "Cada día, una foto y una frase de cada uno para recordar el viaje.",
+    icono: "cuaderno",
+    creado_por_nombre: "Clara López",
+    convertida_en_tarea: false,
+    creado_en: new Date(Date.now() - 86400000 * 5).toISOString(),
+  },
+];
+
+let localIdeas: IdeaViaje[] = [...DEMO_IDEAS];
 
 export const DEMO_EXPENSES: Gasto[] = [
   {
@@ -530,8 +610,8 @@ export const DEMO_MEMBERS: TripMember[] = [
   {
     id: "demo-member-2",
     viaje_id: DEMO_TRIP_ID,
-    nombre: "Pablo Morales",
-    email: "pablo.m@ejemplo.com",
+    nombre: "Daniel López",
+    email: "daniel.l@ejemplo.com",
     rol: "editor",
     estado: "activo",
     invitado_en: "2026-01-16T11:30:00Z",
@@ -548,10 +628,10 @@ export const DEMO_MEMBERS: TripMember[] = [
   {
     id: "demo-member-4",
     viaje_id: DEMO_TRIP_ID,
-    nombre: "Nico Morales",
-    email: "nico.m@ejemplo.com",
+    nombre: "Nicolás Martín",
+    email: "nicolas.m@ejemplo.com",
     rol: "viewer",
-    estado: "pendiente",
+    estado: "activo",
     invitado_en: "2026-01-18T16:20:00Z",
   },
   // Menorca
@@ -1240,6 +1320,200 @@ export const tripService = {
   },
 
   /**
+   * Elimina una tarea
+   */
+  async deleteTask(taskId: string): Promise<{ success: boolean; error?: string }> {
+    if (
+      !isSupabaseConfigured ||
+      taskId.startsWith("task-") ||
+      taskId.startsWith("demo-")
+    ) {
+      localTasks = localTasks.filter((t) => t.id !== taskId);
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase.from("tareas").delete().eq("id", taskId);
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Error al eliminar tarea",
+      };
+    }
+  },
+
+  /**
+   * Carga las ideas compartidas de un viaje
+   */
+  async getIdeas(tripId: string): Promise<IdeaViaje[]> {
+    if (
+      !isSupabaseConfigured ||
+      tripId.startsWith("demo-") ||
+      tripId.startsWith("trip-") ||
+      tripId === "portugal"
+    ) {
+      return localIdeas.filter(
+        (i) =>
+          !i.convertida_en_tarea &&
+          (i.viaje_id === tripId || tripId === "portugal" || i.viaje_id === DEMO_TRIP_ID)
+      );
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("ideas")
+        .select("*")
+        .eq("viaje_id", tripId)
+        .eq("convertida_en_tarea", false)
+        .order("creado_en", { ascending: false });
+
+      if (error) {
+        console.warn("Aviso cargando ideas desde Supabase (usando fallback):", error.message);
+        return localIdeas.filter(
+          (i) =>
+            !i.convertida_en_tarea &&
+            (i.viaje_id === tripId || i.viaje_id === DEMO_TRIP_ID)
+        );
+      }
+
+      if (!data || data.length === 0) {
+        return localIdeas.filter(
+          (i) =>
+            !i.convertida_en_tarea &&
+            (i.viaje_id === tripId || i.viaje_id === DEMO_TRIP_ID)
+        );
+      }
+
+      return data as IdeaViaje[];
+    } catch {
+      return localIdeas.filter(
+        (i) =>
+          !i.convertida_en_tarea &&
+          (i.viaje_id === tripId || i.viaje_id === DEMO_TRIP_ID)
+      );
+    }
+  },
+
+  /**
+   * Crea una nueva idea compartida
+   */
+  async createIdea(
+    idea: Partial<IdeaViaje>
+  ): Promise<{ data: IdeaViaje | null; error?: string }> {
+    const newIdea: IdeaViaje = {
+      id: idea.id || `idea-${Date.now()}`,
+      viaje_id: idea.viaje_id || DEMO_TRIP_ID,
+      ciudad_id: idea.ciudad_id ?? null,
+      ambito: idea.ambito || "Viaje general",
+      titulo: idea.titulo || "Nueva propuesta",
+      descripcion: idea.descripcion || "",
+      icono: idea.icono || "cuaderno",
+      foto_url: idea.foto_url || null,
+      creado_por: idea.creado_por || null,
+      creado_por_nombre: idea.creado_por_nombre || "Viajero",
+      convertida_en_tarea: false,
+      creado_en: new Date().toISOString(),
+    };
+
+    if (
+      !isSupabaseConfigured ||
+      newIdea.viaje_id.startsWith("demo-") ||
+      newIdea.viaje_id.startsWith("trip-") ||
+      newIdea.viaje_id === "portugal"
+    ) {
+      localIdeas.unshift(newIdea);
+      return { data: newIdea };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("ideas")
+        .insert({
+          viaje_id: newIdea.viaje_id,
+          ciudad_id: newIdea.ciudad_id,
+          ambito: newIdea.ambito,
+          titulo: newIdea.titulo,
+          descripcion: newIdea.descripcion,
+          icono: newIdea.icono || "cuaderno",
+          foto_url: newIdea.foto_url,
+          creado_por: newIdea.creado_por,
+          creado_por_nombre: newIdea.creado_por_nombre,
+          convertida_en_tarea: false,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.warn("Aviso guardando idea en Supabase:", error.message);
+        localIdeas.unshift(newIdea);
+        return { data: newIdea };
+      }
+
+      return { data: data as IdeaViaje };
+    } catch {
+      localIdeas.unshift(newIdea);
+      return { data: newIdea };
+    }
+  },
+
+  /**
+   * Actualiza una idea (por ejemplo marcarla como convertida en tarea)
+   */
+  async updateIdea(
+    ideaId: string,
+    updates: Partial<IdeaViaje>
+  ): Promise<{ success: boolean; error?: string }> {
+    localIdeas = localIdeas.map((i) =>
+      i.id === ideaId ? { ...i, ...updates } : i
+    );
+
+    if (
+      !isSupabaseConfigured ||
+      ideaId.startsWith("idea-") ||
+      ideaId.startsWith("demo-")
+    ) {
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase
+        .from("ideas")
+        .update(updates)
+        .eq("id", ideaId);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch {
+      return { success: true };
+    }
+  },
+
+  /**
+   * Elimina una idea
+   */
+  async deleteIdea(ideaId: string): Promise<{ success: boolean; error?: string }> {
+    localIdeas = localIdeas.filter((i) => i.id !== ideaId);
+
+    if (
+      !isSupabaseConfigured ||
+      ideaId.startsWith("idea-") ||
+      ideaId.startsWith("demo-")
+    ) {
+      return { success: true };
+    }
+
+    try {
+      const { error } = await supabase.from("ideas").delete().eq("id", ideaId);
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch {
+      return { success: true };
+    }
+  },
+
+  /**
    * Carga los gastos de un viaje
    */
   async getExpenses(tripId: string): Promise<Gasto[]> {
@@ -1287,6 +1561,8 @@ export const tripService = {
         titulo: expense.titulo ?? null,
         monto: expense.monto,
         pagado_por: expense.pagado_por ?? null,
+        pagado_por_nombre: expense.pagado_por_nombre ?? null,
+        notas: expense.notas ?? null,
         estado: expense.estado ?? "pendiente",
         referencia_transporte_id: expense.referencia_transporte_id ?? null,
         referencia_hotel_id: expense.referencia_hotel_id ?? null,
@@ -1298,13 +1574,33 @@ export const tripService = {
     }
 
     try {
+      const payload: Record<string, unknown> = { ...expense };
       const { data, error } = await supabase
         .from("gastos")
-        .insert(expense)
+        .insert(payload as any)
         .select()
         .single();
 
-      if (error) return { data: null, error: error.message };
+      if (error) {
+        // Fallback si la base de datos remota aún no tiene pagado_por_nombre o notas
+        if (
+          error.message?.includes("pagado_por_nombre") ||
+          error.message?.includes("notas") ||
+          error.code === "PGRST204" ||
+          error.message?.includes("schema cache")
+        ) {
+          delete payload.pagado_por_nombre;
+          delete payload.notas;
+          const retry = await supabase
+            .from("gastos")
+            .insert(payload as any)
+            .select()
+            .single();
+          if (retry.error) return { data: null, error: retry.error.message };
+          return { data: retry.data };
+        }
+        return { data: null, error: error.message };
+      }
       return { data };
     } catch (err: unknown) {
       return {
@@ -2017,6 +2313,30 @@ export const tripService = {
 
           members.unshift(syntheticOwner);
         }
+      }
+
+      // 6. Sincronizar num_viajeros en la tabla viajes con el número real de miembros si es mayor
+      if (members.length > 0 && isSupabaseConfigured && viajeId) {
+        Promise.resolve(
+          supabase
+            .from("viajes")
+            .select("num_viajeros")
+            .eq("id", viajeId)
+            .maybeSingle()
+        )
+          .then(({ data: tripRow }) => {
+            if (
+              tripRow &&
+              (tripRow.num_viajeros == null || tripRow.num_viajeros < members.length)
+            ) {
+              supabase
+                .from("viajes")
+                .update({ num_viajeros: members.length })
+                .eq("id", viajeId)
+                .then(() => {});
+            }
+          })
+          .catch(() => {});
       }
 
       return members;

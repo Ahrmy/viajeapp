@@ -25,6 +25,8 @@ interface SidebarProps {
   onSignOut?: () => void
   userName?: string
   trips?: TripOption[]
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
 export function Sidebar({
@@ -38,7 +40,39 @@ export function Sidebar({
   onSignOut,
   userName = "Clara López",
   trips = TRIPS,
+  isCollapsed: propIsCollapsed,
+  onToggleCollapse,
 }: SidebarProps) {
+  const [internalCollapsed, setInternalCollapsed] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return localStorage.getItem("travesia_sidebar_collapsed") === "true"
+      } catch {
+        return false
+      }
+    }
+    return false
+  })
+
+  const isCollapsed =
+    propIsCollapsed !== undefined ? propIsCollapsed : internalCollapsed
+
+  const toggleCollapse = () => {
+    if (onToggleCollapse) {
+      onToggleCollapse()
+    } else {
+      setInternalCollapsed((prev) => {
+        const next = !prev
+        try {
+          localStorage.setItem("travesia_sidebar_collapsed", String(next))
+        } catch {
+          // ignore
+        }
+        return next
+      })
+    }
+  }
+
   const [isTripMenuOpen, setIsTripMenuOpen] = useState(false)
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -152,20 +186,78 @@ export function Sidebar({
   return (
     <aside
       aria-label="Navegación lateral de Travesía"
-      className="w-full lg:w-[248px] shrink-0 h-full min-h-screen flex flex-col justify-between p-6 sm:p-7 lg:py-8 lg:px-5 border-r border-[#E6E2D8] dark:border-stone-800 bg-[#F7F5F0] dark:bg-[#141C17] transition-colors"
+      className={`shrink-0 h-full min-h-screen flex flex-col justify-between border-r border-[#E6E2D8] dark:border-stone-800 bg-[#F7F5F0] dark:bg-[#141C17] transition-all duration-300 ease-in-out select-none ${
+        isCollapsed
+          ? "w-full lg:w-[72px] px-2.5 py-6"
+          : "w-full lg:w-[248px] p-6 sm:p-7 lg:py-8 lg:px-5"
+      }`}
     >
       {/* Top Part: Brand, Trip Selector & Navigation */}
-      <div className="flex flex-col gap-7">
-        {/* Brand */}
-        <div className="pl-1">
-          <Logo iconSize={30} textSize="text-[26px]" />
-        </div>
+      <div className="flex flex-col gap-6">
+        {/* Brand & Collapse Toggle Button */}
+        {isCollapsed ? (
+          <div className="flex flex-col items-center gap-3">
+            <div title="Travesía">
+              <Logo iconSize={28} showText={false} />
+            </div>
+            <button
+              type="button"
+              onClick={toggleCollapse}
+              title="Expandir barra lateral"
+              aria-label="Expandir barra lateral"
+              className="hidden lg:flex items-center justify-center w-8 h-8 rounded-[8px] border border-[#CCD2CA]/70 dark:border-stone-700 bg-white/80 dark:bg-stone-900/80 text-[#727B74] hover:text-[#203D34] hover:border-[#245544] dark:hover:text-stone-100 transition-all cursor-pointer shadow-2xs"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect width="18" height="18" x="3" y="3" rx="2" />
+                <path d="M9 3v18" />
+                <path d="m13 15 3-3-3-3" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between pl-1">
+            <Logo iconSize={30} textSize="text-[26px]" />
+            <button
+              type="button"
+              onClick={toggleCollapse}
+              title="Disminuir barra lateral"
+              aria-label="Disminuir barra lateral"
+              className="hidden lg:flex items-center justify-center w-8 h-8 rounded-[8px] border border-[#CCD2CA]/70 dark:border-stone-700 bg-white/80 dark:bg-stone-900/80 text-[#727B74] hover:text-[#203D34] hover:border-[#245544] dark:hover:text-stone-100 transition-all cursor-pointer shadow-2xs"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect width="18" height="18" x="3" y="3" rx="2" />
+                <path d="M9 3v18" />
+                <path d="m14 9-3 3 3 3" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Trip Selector */}
-        <div className="flex flex-col gap-2">
-          <span className="text-[10px] font-semibold tracking-wider text-[#727B74] dark:text-stone-400 uppercase select-none">
-            Tus viajes
-          </span>
+        <div className={`flex flex-col gap-2 ${isCollapsed ? "items-center" : ""}`}>
+          {!isCollapsed && (
+            <span className="text-[10px] font-semibold tracking-wider text-[#727B74] dark:text-stone-400 uppercase select-none">
+              Tus viajes
+            </span>
+          )}
 
           <div className="relative">
             <button
@@ -173,7 +265,13 @@ export function Sidebar({
               onClick={() =>
                 isTripMenuOpen ? closeTripMenu() : setIsTripMenuOpen(true)
               }
-              className="w-full flex items-center justify-between p-3 rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 shadow-2xs hover:border-[#245544] transition-all cursor-pointer text-left"
+              title={currentTrip?.name || "Tus viajes"}
+              aria-label={currentTrip?.name || "Tus viajes"}
+              className={`${
+                isCollapsed
+                  ? "w-10 h-10 rounded-[8px] flex items-center justify-center border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 shadow-2xs hover:border-[#245544]"
+                  : "w-full flex items-center justify-between p-3 rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-900 shadow-2xs hover:border-[#245544]"
+              } transition-all cursor-pointer text-left`}
             >
               <div className="flex items-center gap-2.5 overflow-hidden">
                 <svg
@@ -190,34 +288,44 @@ export function Sidebar({
                   <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
                   <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
                 </svg>
-                <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100 truncate">
-                  {currentTrip?.name || "Sin viajes"}
-                </span>
+                {!isCollapsed && (
+                  <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100 truncate">
+                    {currentTrip?.name || "Sin viajes"}
+                  </span>
+                )}
               </div>
 
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className={`text-[#727B74] transition-transform ${
-                  isTripMenuOpen ? "rotate-180" : ""
-                }`}
-              >
-                <path
-                  d="M3.5 5.25L7 8.75L10.5 5.25"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              {!isCollapsed && (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`text-[#727B74] transition-transform ${
+                    isTripMenuOpen ? "rotate-180" : ""
+                  }`}
+                >
+                  <path
+                    d="M3.5 5.25L7 8.75L10.5 5.25"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
             </button>
 
             {/* Dropdown Menu */}
             {isTripMenuOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1.5 p-1.5 rounded-[8px] bg-white dark:bg-stone-900 border border-[#E6E2D8] dark:border-stone-700 shadow-md z-30 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
+              <div
+                className={`absolute mt-1.5 p-1.5 rounded-[8px] bg-white dark:bg-stone-900 border border-[#E6E2D8] dark:border-stone-700 shadow-xl z-50 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150 ${
+                  isCollapsed
+                    ? "top-0 left-full ml-3 w-64"
+                    : "top-full left-0 right-0 w-full"
+                }`}
+              >
                 {trips.map((trip) => (
                   <button
                     key={trip.id}
@@ -388,7 +496,10 @@ export function Sidebar({
         </div>
 
         {/* Navigation Sections */}
-        <nav aria-label="Secciones del viaje" className="flex flex-col gap-1.5">
+        <nav
+          aria-label="Secciones del viaje"
+          className={`flex flex-col gap-1.5 ${isCollapsed ? "items-center" : ""}`}
+        >
           {navItems.map((item) => {
             const isActive = activeSection === item.id
             return (
@@ -396,14 +507,20 @@ export function Sidebar({
                 key={item.id}
                 type="button"
                 onClick={() => onSectionChange(item.id)}
-                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-[8px] text-xs font-medium transition-colors cursor-pointer ${
+                title={item.label}
+                aria-label={item.label}
+                className={`flex items-center transition-all cursor-pointer ${
+                  isCollapsed
+                    ? "w-10 h-10 justify-center rounded-[8px]"
+                    : "gap-3 px-3.5 py-2.5 rounded-[8px] text-xs font-medium"
+                } ${
                   isActive
                     ? "bg-[#245544] text-white shadow-xs dark:bg-[#1f4b3c]"
                     : "text-[#4D5B54] dark:text-stone-300 hover:bg-[#EAE6DD] dark:hover:bg-stone-800"
                 }`}
               >
                 <span className="shrink-0">{item.icon}</span>
-                <span>{item.label}</span>
+                {!isCollapsed && <span>{item.label}</span>}
               </button>
             )
           })}
@@ -411,7 +528,11 @@ export function Sidebar({
       </div>
 
       {/* Account & Help - Pinned to bottom with mt-auto */}
-      <div className="flex flex-col gap-4 pt-6 border-t border-[#E6E2D8] dark:border-stone-800 mt-auto">
+      <div
+        className={`flex flex-col gap-4 pt-6 border-t border-[#E6E2D8] dark:border-stone-800 mt-auto ${
+          isCollapsed ? "items-center" : ""
+        }`}
+      >
         <a
           href="#ayuda"
           onClick={(e) => {
@@ -420,29 +541,41 @@ export function Sidebar({
               "Centro de ayuda Travesía: soporte y guías de viaje familiar."
             )
           }}
-          className="flex items-center gap-2.5 px-2 text-xs text-[#4D5B54] hover:text-[#203D34] dark:text-stone-400 dark:hover:text-stone-200 transition-colors"
+          title="¿Te echamos una mano? Centro de ayuda"
+          aria-label="Centro de ayuda"
+          className={`flex items-center gap-2.5 text-xs text-[#4D5B54] hover:text-[#203D34] dark:text-stone-400 dark:hover:text-stone-200 transition-colors ${
+            isCollapsed
+              ? "w-10 h-10 justify-center rounded-[8px] hover:bg-[#EAE6DD] dark:hover:bg-stone-800"
+              : "px-2"
+          }`}
         >
           <svg
-            width="16"
-            height="16"
+            width="18"
+            height="18"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
+            className="shrink-0"
           >
             <circle cx="12" cy="12" r="10" />
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <span>¿Te echamos una mano?</span>
+          {!isCollapsed && <span>¿Te echamos una mano?</span>}
         </a>
 
         {/* User Profile Card */}
-        <div className="flex items-center justify-between p-2 rounded-[8px] hover:bg-[#EAE6DD] dark:hover:bg-stone-800 transition-colors">
+        <div
+          title={isCollapsed ? `${userName} · Tu espacio familiar` : undefined}
+          className={`flex items-center justify-between rounded-[8px] hover:bg-[#EAE6DD] dark:hover:bg-stone-800 transition-colors ${
+            isCollapsed ? "flex-col gap-2 p-1.5" : "p-2"
+          }`}
+        >
           <div className="flex items-center gap-2.5">
-            <Avatar className="h-[38px] w-[38px] border-2 border-white dark:border-stone-700 shadow-2xs">
+            <Avatar className="h-[36px] w-[36px] border-2 border-white dark:border-stone-700 shadow-2xs shrink-0">
               <AvatarFallback className="bg-[#E8EFEA] text-[#245544] font-medium text-xs">
                 {userName
                   ? userName
@@ -455,14 +588,16 @@ export function Sidebar({
                   : "TR"}
               </AvatarFallback>
             </Avatar>
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100">
-                {userName}
-              </span>
-              <span className="text-[10px] text-[#727B74] dark:text-stone-400">
-                Tu espacio familiar
-              </span>
-            </div>
+            {!isCollapsed && (
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-semibold text-[#203D34] dark:text-stone-100 truncate">
+                  {userName}
+                </span>
+                <span className="text-[10px] text-[#727B74] dark:text-stone-400">
+                  Tu espacio familiar
+                </span>
+              </div>
+            )}
           </div>
 
           {onSignOut && (

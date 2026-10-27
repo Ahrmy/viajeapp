@@ -17,6 +17,7 @@ import { DestinationsSlider, type Destination } from "./DestinationsSlider"
 import { CityDetailView } from "./CityDetailView"
 import { ItineraryView } from "./ItineraryView"
 import { BudgetView } from "./BudgetView"
+import { TasksAndIdeasView } from "./TasksAndIdeasView"
 import { BudgetOverviewCard } from "./BudgetOverviewCard"
 import { UpcomingTasksCard, type TaskItem } from "./UpcomingTasksCard"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -364,7 +365,32 @@ export function TripOverview({
       })
       .then((members) => {
         if (!isMounted) return
-        setMembersList(members || [])
+        const loadedMembers = members || []
+        setMembersList(loadedMembers)
+
+        if (loadedMembers.length > 0) {
+          setTripHeroes((prev) => {
+            const currentHero = prev[currentTrip.id]
+            const realCount = Math.max(
+              currentHero?.travelersCount || 1,
+              loadedMembers.length
+            )
+            return {
+              ...prev,
+              [currentTrip.id]: {
+                ...(currentHero || {
+                  tripName: currentTrip.name,
+                  dates: currentTrip.dates,
+                }),
+                travelersCount: realCount,
+              },
+            }
+          })
+
+          tripService.updateTrip(currentTrip.id, {
+            num_viajeros: loadedMembers.length,
+          })
+        }
       })
 
     return () => {
@@ -658,6 +684,11 @@ export function TripOverview({
     )
   }
 
+  const currentTravelersCount = Math.max(
+    tripHeroes[currentTrip?.id || ""]?.travelersCount || 1,
+    membersList.length
+  )
+
   return (
     <div className="min-h-screen w-full bg-[#FAF9F5] dark:bg-[#111713] text-[#203D34] dark:text-stone-100 flex flex-col lg:flex-row transition-colors">
       {/* Mobile Top Bar */}
@@ -758,9 +789,10 @@ export function TripOverview({
             cityId={selectedCityId}
             cityName={selectedCityName}
             cityData={destinationsList.find((d) => d.id === selectedCityId)}
+            destinations={destinationsList}
             tripName={currentTrip.name}
             startDate={tripHeroes[currentTrip.id]?.startDate || "2026-11-06"}
-            travelersCount={tripHeroes[currentTrip.id]?.travelersCount || 4}
+            travelersCount={currentTravelersCount}
             isAdmin={isAdmin}
             onBack={() => {
               setSelectedCityId(null)
@@ -771,7 +803,9 @@ export function TripOverview({
               setActiveSection("general")
             }}
             onSelectCity={(id) => {
-              const target = destinationsList.find((d) => d.id === id)
+              const target = destinationsList.find(
+                (d) => d.id === id || d.name.toLowerCase() === id.toLowerCase()
+              )
               if (target) {
                 setSelectedCityId(target.id)
                 setSelectedCityName(target.name)
@@ -804,7 +838,17 @@ export function TripOverview({
             trip={currentTrip}
             heroData={tripHeroes[currentTrip.id]}
             destinations={destinationsList}
-            travelersCount={tripHeroes[currentTrip.id]?.travelersCount || 4}
+            members={membersList}
+            currentUser={
+              user
+                ? {
+                    id: user.id,
+                    name: userName,
+                    email: user.email,
+                  }
+                : { name: userName }
+            }
+            travelersCount={currentTravelersCount}
             onBackToOverview={() => setActiveSection("general")}
             onSelectCity={(id) => {
               const target = destinationsList.find((d) => d.id === id)
@@ -859,8 +903,40 @@ export function TripOverview({
             tripName={currentTrip.name}
             tripDates={`${currentTrip.dates} · ${currentTrip.name}`}
             initialLimit={budgetTotal}
+            members={membersList}
+            currentUser={
+              user
+                ? {
+                    id: user.id,
+                    name: userName,
+                    email: user.email,
+                  }
+                : { name: userName }
+            }
+            travelersCount={currentTravelersCount}
             onBack={() => setActiveSection("general")}
             onUpdateLimit={(newLimit) => setBudgetTotal(newLimit)}
+            onInvite={() => setIsInviteOpen(true)}
+          />
+        ) : activeSection === "tareas" ? (
+          <TasksAndIdeasView
+            tripId={currentTrip.id}
+            tripName={currentTrip.name}
+            tripDates={tripHeroes[currentTrip.id]?.dates || currentTrip.dates}
+            destinations={destinationsList}
+            members={membersList}
+            currentUser={
+              user
+                ? {
+                    id: user.id,
+                    name: userName,
+                    email: user.email,
+                  }
+                : { name: userName }
+            }
+            travelersCount={currentTravelersCount}
+            onBack={() => setActiveSection("general")}
+            onInvite={() => setIsInviteOpen(true)}
           />
         ) : (
           <>
@@ -1168,7 +1244,10 @@ export function TripOverview({
             {/* Hero Panorama & 21 Days Countdown with Admin Edit Button */}
             <TripHero
               tripName={currentTrip.name}
-              initialData={tripHeroes[currentTrip.id]}
+              initialData={{
+                ...tripHeroes[currentTrip.id],
+                travelersCount: currentTravelersCount,
+              }}
               daysRemaining={calculateDaysRemaining(tripHeroes[currentTrip.id]?.startDate)}
               departureDate={formatDepartureDay(tripHeroes[currentTrip.id]?.startDate, currentTrip.dates)}
               isAdmin={isAdmin}
@@ -1231,8 +1310,8 @@ export function TripOverview({
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
                   <span>
-                    {tripHeroes[currentTrip.id]?.travelersCount || 4}{" "}
-                    {(tripHeroes[currentTrip.id]?.travelersCount || 4) === 1
+                    {currentTravelersCount}{" "}
+                    {currentTravelersCount === 1
                       ? "viajero"
                       : "viajeros"}
                   </span>
@@ -1336,12 +1415,17 @@ export function TripOverview({
             rol
           )
           if (res.success && res.data) {
-            setMembersList((prev) => {
-              const filtered = prev.filter(
+            const updated = [
+              ...membersList.filter(
                 (m) => m.email.toLowerCase() !== res.data!.email.toLowerCase()
-              )
-              return [...filtered, res.data!]
-            })
+              ),
+              res.data!,
+            ]
+            setMembersList(updated)
+            const newCount = Math.max(
+              tripHeroes[currentTrip.id]?.travelersCount || 1,
+              updated.length
+            )
             setTripHeroes((prev) => {
               const currentHero = prev[currentTrip.id]
               if (!currentHero) return prev
@@ -1349,13 +1433,11 @@ export function TripOverview({
                 ...prev,
                 [currentTrip.id]: {
                   ...currentHero,
-                  travelersCount: Math.max(
-                    currentHero.travelersCount || 1,
-                    membersList.length + 1
-                  ),
+                  travelersCount: newCount,
                 },
               }
             })
+            tripService.updateTrip(currentTrip.id, { num_viajeros: newCount })
           }
           return res
         }}
@@ -1367,7 +1449,21 @@ export function TripOverview({
         }}
         onRemoveMember={async (memberId) => {
           await tripService.removeMember(currentTrip.id, memberId)
-          setMembersList((prev) => prev.filter((m) => m.id !== memberId))
+          const updated = membersList.filter((m) => m.id !== memberId)
+          setMembersList(updated)
+          const newCount = Math.max(1, updated.length)
+          setTripHeroes((prev) => {
+            const currentHero = prev[currentTrip.id]
+            if (!currentHero) return prev
+            return {
+              ...prev,
+              [currentTrip.id]: {
+                ...currentHero,
+                travelersCount: newCount,
+              },
+            }
+          })
+          tripService.updateTrip(currentTrip.id, { num_viajeros: newCount })
         }}
         onResendInvite={async (memberId) => {
           await tripService.resendInvite(currentTrip.id, memberId)

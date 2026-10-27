@@ -1,14 +1,16 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import type { Destination } from "./DestinationsSlider"
 import type { TripOption } from "./Sidebar"
 import type { HeroData } from "./EditHeroModal"
 import { tripService } from "@/lib/tripService"
-import type { Transporte } from "@/types/database"
+import type { Transporte, TripMember } from "@/types/database"
 
 interface ItineraryViewProps {
   trip: TripOption
   heroData?: HeroData
   destinations: Destination[]
+  members?: TripMember[]
+  currentUser?: { id?: string; name?: string; email?: string } | null
   travelersCount?: number
   onBackToOverview: () => void
   onSelectCity: (cityId: string) => void
@@ -18,6 +20,17 @@ interface ItineraryViewProps {
   onDeleteCity?: (cityId: string) => void
   onInvite?: () => void
   onReorderDestinations?: (reordered: Destination[]) => void
+}
+
+function getInitials(name?: string, email?: string): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase()
+    }
+    return parts[0].substring(0, 2).toUpperCase()
+  }
+  return email ? email.substring(0, 2).toUpperCase() : "VI"
 }
 
 const MONTH_NAMES = [
@@ -35,10 +48,11 @@ const MONTH_NAMES = [
   "dic",
 ]
 
-function formatSegmentDates(
+export function formatSegmentDates(
   startDateStr: string | undefined,
   startOffsetDays: number,
-  durationNights: number
+  durationNights: number,
+  includeYear: boolean = true
 ): string {
   if (!startDateStr) {
     const startDay = startOffsetDays + 1
@@ -67,9 +81,13 @@ function formatSegmentDates(
     const nightStr = `${durationNights} ${durationNights === 1 ? "noche" : "noches"}`
 
     if (startMonth === endMonth) {
-      return `${startDay}–${endDay} ${startMonth} ${year} · ${nightStr}`
+      return includeYear
+        ? `${startDay}–${endDay} ${startMonth} ${year} · ${nightStr}`
+        : `${startDay}–${endDay} ${startMonth} · ${nightStr}`
     }
-    return `${startDay} ${startMonth} – ${endDay} ${endMonth} ${year} · ${nightStr}`
+    return includeYear
+      ? `${startDay} ${startMonth} – ${endDay} ${endMonth} ${year} · ${nightStr}`
+      : `${startDay} ${startMonth} – ${endDay} ${endMonth} · ${nightStr}`
   } catch {
     return `${durationNights} ${durationNights === 1 ? "noche" : "noches"}`
   }
@@ -79,6 +97,8 @@ export function ItineraryView({
   trip,
   heroData,
   destinations,
+  members,
+  currentUser,
   travelersCount = 4,
   onBackToOverview,
   onSelectCity,
@@ -89,6 +109,54 @@ export function ItineraryView({
   onInvite,
   onReorderDestinations,
 }: ItineraryViewProps) {
+  // Miembros efectivos sincronizados con el viaje
+  const effectiveMembers = useMemo<TripMember[]>(() => {
+    if (members && members.length > 0) return members
+    return [
+      {
+        id: "m-1",
+        viaje_id: trip.id,
+        nombre: currentUser?.name || "Clara López",
+        email: currentUser?.email || "clara.lopez@ejemplo.com",
+        rol: "owner",
+        estado: "activo",
+        invitado_en: new Date().toISOString(),
+      },
+      {
+        id: "m-2",
+        viaje_id: trip.id,
+        nombre: "Daniel López",
+        email: "daniel.l@ejemplo.com",
+        rol: "editor",
+        estado: "activo",
+        invitado_en: new Date().toISOString(),
+      },
+      {
+        id: "m-3",
+        viaje_id: trip.id,
+        nombre: "Lucía Martín",
+        email: "lucia.martin@ejemplo.com",
+        rol: "viewer",
+        estado: "activo",
+        invitado_en: new Date().toISOString(),
+      },
+      {
+        id: "m-4",
+        viaje_id: trip.id,
+        nombre: "Nicolás Martín",
+        email: "nicolas.m@ejemplo.com",
+        rol: "viewer",
+        estado: "activo",
+        invitado_en: new Date().toISOString(),
+      },
+    ]
+  }, [members, trip.id, currentUser])
+
+  const effectiveTravelersCount = Math.max(
+    effectiveMembers.length,
+    travelersCount || 1
+  )
+
   const [items, setItems] = useState<Destination[]>(destinations)
   const [activeMenuCityId, setActiveMenuCityId] = useState<string | null>(null)
   const [cityToDelete, setCityToDelete] = useState<Destination | null>(null)
@@ -321,41 +389,58 @@ export function ItineraryView({
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center -space-x-2">
-            <div className="w-[34px] h-[34px] rounded-full bg-[#DDEAE2] text-[#245544] border-2 border-[#FAF9F5] dark:border-stone-900 flex items-center justify-center text-[11px] font-semibold shadow-2xs">
-              CL
-            </div>
-            <div className="w-[34px] h-[34px] rounded-full bg-[#EFE9DF] text-[#7A6242] border-2 border-[#FAF9F5] dark:border-stone-900 flex items-center justify-center text-[11px] font-semibold shadow-2xs">
-              DL
-            </div>
-            <div className="w-[34px] h-[34px] rounded-full bg-[#DDEAE2] text-[#245544] border-2 border-[#FAF9F5] dark:border-stone-900 flex items-center justify-center text-[11px] font-semibold shadow-2xs">
-              LM
-            </div>
-            <div className="w-[34px] h-[34px] rounded-full bg-[#EFE9DF] text-[#7A6242] border-2 border-[#FAF9F5] dark:border-stone-900 flex items-center justify-center text-[11px] font-semibold shadow-2xs">
-              NM
-            </div>
-          </div>
-
           <button
             type="button"
             onClick={onInvite}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-white dark:bg-stone-800 border border-[#CCD2CA] dark:border-stone-700 text-[#245544] dark:text-[#A7F3D0] text-xs font-semibold hover:bg-stone-50 dark:hover:bg-stone-700/60 transition-colors shadow-2xs cursor-pointer"
+            className="flex items-center -space-x-2 cursor-pointer group"
+            title="Ver y gestionar viajeros"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>Invitar</span>
+            {effectiveMembers.slice(0, 4).map((m, idx) => (
+              <div
+                key={m.id || idx}
+                title={`${m.nombre || m.email} (${m.rol === "owner" ? "Organizador" : m.rol === "editor" ? "Editor" : "Lector"})`}
+                className={`w-[34px] h-[34px] rounded-full border-2 border-[#FAF9F5] dark:border-stone-900 flex items-center justify-center text-[11px] font-semibold shadow-2xs transition-transform group-hover:scale-105 ${
+                  idx % 2 === 0
+                    ? "bg-[#DDEAE2] text-[#245544] dark:bg-stone-800 dark:text-[#A7F3D0]"
+                    : "bg-[#EFE9DF] text-[#7A6242] dark:bg-stone-700 dark:text-amber-200"
+                }`}
+              >
+                {getInitials(m.nombre, m.email)}
+              </div>
+            ))}
+            {effectiveMembers.length > 4 && (
+              <div
+                className="w-[34px] h-[34px] rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[#245544] dark:text-emerald-300 flex items-center justify-center text-[11px] font-bold border-2 border-[#FAF9F5] dark:border-stone-900 shadow-2xs group-hover:scale-105 transition-transform"
+                title={`+${effectiveMembers.length - 4} viajeros más`}
+              >
+                +{effectiveMembers.length - 4}
+              </div>
+            )}
           </button>
+
+          {onInvite && (
+            <button
+              type="button"
+              onClick={onInvite}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] bg-white dark:bg-stone-800 border border-[#CCD2CA] dark:border-stone-700 text-[#245544] dark:text-[#A7F3D0] text-xs font-semibold hover:bg-[#E8EFEA] dark:hover:bg-stone-700/60 transition-colors shadow-2xs cursor-pointer"
+              title="Invitar a un nuevo viajero"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>Invitar</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -403,7 +488,7 @@ export function ItineraryView({
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
             <span>
-              {travelersCount} {travelersCount === 1 ? "viajero" : "viajeros"}
+              {effectiveTravelersCount} {effectiveTravelersCount === 1 ? "viajero" : "viajeros"}
             </span>
           </div>
 
@@ -535,7 +620,7 @@ export function ItineraryView({
         {showAddTransportNotice && (
           <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs text-emerald-800 dark:text-emerald-300 flex items-center justify-between animate-in fade-in">
             <span>
-              Configuración de vuelos y trenes principales sincronizada para {travelersCount} viajeros.
+              Configuración de vuelos y trenes principales sincronizada para {effectiveTravelersCount} viajeros.
             </span>
             <button
               type="button"
@@ -632,7 +717,7 @@ export function ItineraryView({
             <div className="border-t border-[#DFE2DA] dark:border-stone-800 pt-3 flex items-center justify-between text-xs">
               <div className="flex flex-col">
                 <span className="font-semibold text-[#203D34] dark:text-stone-200">
-                  {85 * travelersCount} € para los {travelersCount} viajeros
+                  {85 * effectiveTravelersCount} € para los {effectiveTravelersCount} viajeros
                 </span>
                 <span className="text-[11px] text-[#727B74] dark:text-stone-400">
                   Equipaje de mano · Solo ida
@@ -733,7 +818,7 @@ export function ItineraryView({
             <div className="border-t border-[#DFE2DA] dark:border-stone-800 pt-3 flex items-center justify-between text-xs">
               <div className="flex flex-col">
                 <span className="font-semibold text-[#203D34] dark:text-stone-200">
-                  {79 * travelersCount} € para los {travelersCount} viajeros
+                  {79 * effectiveTravelersCount} € para los {effectiveTravelersCount} viajeros
                 </span>
                 <span className="text-[11px] text-[#727B74] dark:text-stone-400">
                   Equipaje de mano · Solo ida

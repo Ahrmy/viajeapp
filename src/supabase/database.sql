@@ -194,6 +194,11 @@ CREATE TABLE IF NOT EXISTS gastos (
   creado_en                timestamptz NOT NULL DEFAULT now()
 );
 
+-- Migraciones seguras para gastos y personas pagadoras reales
+ALTER TABLE gastos ADD COLUMN IF NOT EXISTS pagado_por_nombre text;
+ALTER TABLE gastos ADD COLUMN IF NOT EXISTS notas text;
+ALTER TABLE gastos DROP CONSTRAINT IF EXISTS gastos_pagado_por_fkey;
+
 -- ---------- 3. Índices ----------
 CREATE INDEX IF NOT EXISTS idx_viaje_miembros_user ON viaje_miembros(user_id);
 CREATE INDEX IF NOT EXISTS idx_viaje_miembros_viaje ON viaje_miembros(viaje_id);
@@ -863,3 +868,71 @@ DO UPDATE SET
   rol = 'owner',
   email = coalesce(nullif(EXCLUDED.email, ''), viaje_miembros.email),
   nombre = coalesce(nullif(EXCLUDED.nombre, ''), viaje_miembros.nombre);
+
+-- ---------- 11. Sincronizar num_viajeros con el conteo real de miembros e invitados ----------
+-- Actualizar viajes existentes cuyo num_viajeros no concuerde con los miembros registrados
+UPDATE viajes v
+SET num_viajeros = GREATEST(
+  COALESCE(v.num_viajeros, 1),
+  (SELECT count(*)::integer FROM viaje_miembros vm WHERE vm.viaje_id = v.id)
+)
+WHERE EXISTS (
+  SELECT 1 FROM viaje_miembros vm WHERE vm.viaje_id = v.id
+);
+
+-- Trigger para mantener num_viajeros automáticamente actualizado al añadir o eliminar miembros
+CREATE OR REPLACE FUNCTION trg_sync_viajes_num_viajeros()
+RETURNS TRIGGER AS $$
+DECLARE
+  target_viaje_id uuid;
+  miembros_count integer;
+BEGIN
+  target_viaje_id := COALESCE(NEW.viaje_id, OLD.viaje_id);
+  IF target_viaje_id IS NOT NULL THEN
+    SELECT count(*)::integer INTO miembros_count FROM viaje_miembros WHERE viaje_id = target_viaje_id;
+    UPDATE viajes
+    SET num_viajeros = GREATEST(COALESCE(num_viajeros, 1), miembros_count)
+    WHERE id = target_viaje_id;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_viaje_miembros_sync_num_viajeros ON viaje_miembros;
+CREATE TRIGGER trg_viaje_miembros_sync_num_viajeros
+AFTER INSERT OR UPDATE OR DELETE ON viaje_miembros
+FOR EACH ROW
+EXECUTE FUNCTION trg_sync_viajes_num_viajeros();
+
+-- ---------- 12. Ideas compartidas y mejoras en tareas ----------
+CREATE TABLE IF NOT EXISTS ideas (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  viaje_id            uuid NOT NULL REFERENCES viajes(id) ON DELETE CASCADE,
+  ciudad_id           uuid REFERENCES ciudades(id) ON DELETE CASCADE,
+  ambito              text NOT NULL DEFAULT 'Viaje general',
+  titulo              text NOT NULL,
+  descripcion         text,
+  icono               text DEFAULT 'cuaderno',
+  foto_url            text,
+  creado_por          uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  creado_por_nombre   text,
+  convertida_en_tarea boolean NOT NULL DEFAULT false,
+  creado_en           timestamptz NOT NULL DEFAULT now()
+);
+
+-- Columnas adicionales seguras para tareas e ideas
+ALTER TABLE ideas ADD COLUMN IF NOT EXISTS icono text DEFAULT 'cuaderno';
+ALTER TABLE tareas ADD COLUMN IF NOT EXISTS creado_por uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE tareas ADD COLUMN IF NOT EXISTS creado_por_nombre text;
+ALTER TABLE tareas ADD COLUMN IF NOT EXISTS asignado_a_nombre text;
+ALTER TABLE tareas ADD COLUMN IF NOT EXISTS ambito text;
+
+ALTER TABLE ideas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ver ideas" ON ideas;
+CREATE POLICY "ver ideas" ON ideas FOR SELECT USING (true);
+DROP POLICY IF EXISTS "crear ideas" ON ideas;
+CREATE POLICY "crear ideas" ON ideas FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "editar ideas" ON ideas;
+CREATE POLICY "editar ideas" ON ideas FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "borrar ideas" ON ideas;
+CREATE POLICY "borrar ideas" ON ideas FOR DELETE USING (true);

@@ -2,12 +2,14 @@ interface LogoProps {
   className?: string
   iconSize?: number
   textSize?: string
+  showText?: boolean
 }
 
 export function Logo({
   className = "",
   iconSize = 34,
   textSize = "text-[30px]",
+  showText = true,
 }: LogoProps) {
   return (
     <div className={`inline-flex items-center gap-2.5 select-none ${className}`}>
@@ -29,11 +31,13 @@ export function Logo({
           />
         </svg>
       </div>
-      <span
-        className={`font-serif font-normal tracking-tight text-[#203D34] dark:text-stone-100 ${textSize}`}
-      >
-        Travesía
-      </span>
+      {showText && (
+        <span
+          className={`font-serif font-normal tracking-tight text-[#203D34] dark:text-stone-100 ${textSize}`}
+        >
+          Travesía
+        </span>
+      )}
     </div>
   )
 }

@@ -1,14 +1,30 @@
 import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { tripService } from "@/lib/tripService"
+import type { TripMember } from "@/types/database"
 
 interface BudgetViewProps {
   tripId?: string
   tripName?: string
   tripDates?: string
   initialLimit?: number
+  members?: TripMember[]
+  currentUser?: { id?: string; name?: string; email?: string } | null
+  travelersCount?: number
   onBack: () => void
   onUpdateLimit?: (newLimit: number) => void
+  onInvite?: () => void
+}
+
+function getInitials(name?: string, email?: string): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/)
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase()
+    }
+    return parts[0].substring(0, 2).toUpperCase()
+  }
+  return email ? email.substring(0, 2).toUpperCase() : "VI"
 }
 
 interface Expense {
@@ -22,6 +38,7 @@ interface Expense {
   author: string
   authorInitials: string
   payer: string
+  payerId?: string
   isPaid: boolean
 }
 
@@ -117,12 +134,88 @@ export function BudgetView({
   tripName = "Portugal en familia",
   tripDates = "6–13 noviembre 2026 · Lisboa, Sintra y Oporto",
   initialLimit = 3200,
+  members: propMembers,
+  currentUser,
+  travelersCount = 4,
   onBack,
   onUpdateLimit,
+  onInvite,
 }: BudgetViewProps) {
-  const [expenses, setExpenses] = useState<Expense[]>(() =>
-    tripId === "demo-portugal-2026" || !tripId ? INITIAL_EXPENSES : []
-  )
+  const [localMembers, setLocalMembers] = useState<TripMember[]>([])
+
+  // Cargar miembros si no vienen por props
+  useEffect(() => {
+    if (!propMembers || propMembers.length === 0) {
+      if (tripId) {
+        let isMounted = true
+        tripService
+          .getMembers(tripId, currentUser?.id, {
+            name: currentUser?.name,
+            email: currentUser?.email,
+          })
+          .then((m) => {
+            if (isMounted && m && m.length > 0) {
+              setLocalMembers(m)
+            }
+          })
+        return () => {
+          isMounted = false
+        }
+      }
+    }
+  }, [tripId, propMembers, currentUser])
+
+  const effectiveMembers = useMemo<TripMember[]>(() => {
+    if (propMembers && propMembers.length > 0) return propMembers
+    if (localMembers.length > 0) return localMembers
+    // Fallback unificado: 4 viajeros por defecto
+    return [
+      {
+        id: "m-1",
+        viaje_id: tripId || "",
+        user_id: currentUser?.id,
+        nombre: currentUser?.name || "Clara López",
+        email: currentUser?.email || "clara.lopez@ejemplo.com",
+        rol: "owner",
+        estado: "activo",
+        invitado_en: new Date().toISOString(),
+      },
+      {
+        id: "m-2",
+        viaje_id: tripId || "",
+        nombre: "Daniel López",
+        email: "daniel.l@ejemplo.com",
+        rol: "editor",
+        estado: "activo",
+        invitado_en: new Date().toISOString(),
+      },
+      {
+        id: "m-3",
+        viaje_id: tripId || "",
+        nombre: "Lucía Martín",
+        email: "lucia.martin@ejemplo.com",
+        rol: "viewer",
+        estado: "activo",
+        invitado_en: new Date().toISOString(),
+      },
+      {
+        id: "m-4",
+        viaje_id: tripId || "",
+        nombre: "Nicolás Martín",
+        email: "nicolas.m@ejemplo.com",
+        rol: "viewer",
+        estado: "activo",
+        invitado_en: new Date().toISOString(),
+      },
+    ]
+  }, [propMembers, localMembers, currentUser, tripId])
+
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    if (tripId && !tripId.startsWith("demo-") && tripId !== "portugal") {
+      return []
+    }
+    return INITIAL_EXPENSES
+  })
   const [totalLimit, setTotalLimit] = useState(initialLimit || 3200)
   const [statusFilter, setStatusFilter] = useState<
     "todos" | "realizados" | "proyectados"
@@ -138,7 +231,29 @@ export function BudgetView({
     "realizado"
   )
   const [newDescription, setNewDescription] = useState("")
-  const [newPayer, setNewPayer] = useState("Clara")
+  const [newPayerId, setNewPayerId] = useState<string>("")
+
+  // Seleccionar por defecto el usuario actual en el dropdown de pagador
+  useEffect(() => {
+    if (effectiveMembers.length > 0) {
+      const defaultPayer =
+        effectiveMembers.find(
+          (m) =>
+            (currentUser?.id && m.user_id === currentUser.id) ||
+            (currentUser?.email &&
+              m.email?.toLowerCase() === currentUser.email.toLowerCase()) ||
+            (currentUser?.name &&
+              m.nombre.toLowerCase() === currentUser.name.toLowerCase())
+        ) || effectiveMembers[0]
+
+      if (
+        defaultPayer &&
+        (!newPayerId || !effectiveMembers.some((m) => m.id === newPayerId))
+      ) {
+        setNewPayerId(defaultPayer.id)
+      }
+    }
+  }, [effectiveMembers, currentUser, newPayerId])
 
   // Modal Editar Límite
   const [isEditLimitOpen, setIsEditLimitOpen] = useState(false)
@@ -151,7 +266,7 @@ export function BudgetView({
     }
   }, [initialLimit])
 
-  // Cargar gastos de Supabase si existe tripId
+  // Cargar gastos de Supabase si existe tripId y asociar con usuarios reales
   useEffect(() => {
     if (!tripId) return
 
@@ -179,22 +294,50 @@ export function BudgetView({
             : "otros"
 
           const isApproved = g.estado === "aprobado"
+
+          // Enlazar con miembros reales del viaje
+          const matchingMember = effectiveMembers.find(
+            (m) =>
+              (g.pagado_por &&
+                (m.user_id === g.pagado_por || m.id === g.pagado_por)) ||
+              (g.pagado_por_nombre &&
+                (m.nombre.toLowerCase().trim() ===
+                  g.pagado_por_nombre.toLowerCase().trim() ||
+                  m.nombre
+                    .toLowerCase()
+                    .includes(g.pagado_por_nombre.toLowerCase()) ||
+                  g.pagado_por_nombre
+                    .toLowerCase()
+                    .includes(m.nombre.toLowerCase())))
+          )
+
+          const payerName = matchingMember
+            ? matchingMember.nombre
+            : g.pagado_por_nombre || (isApproved ? "Registrado" : "Pendiente")
+
+          const authorName =
+            matchingMember?.nombre ||
+            g.pagado_por_nombre ||
+            currentUser?.name ||
+            "Viajero"
+
           return {
             id: g.id,
             title: g.titulo || "Gasto sin título",
             category: cat,
             categoryLabel: categoryLabels[cat] || "Otros",
             status: isApproved ? "realizado" : "proyectado",
-            description: g.titulo || "Registrado en el viaje",
+            description: g.notas || g.titulo || "Registrado en el viaje",
             amount: Number(g.monto),
-            author: "Familia",
-            authorInitials: "FM",
-            payer: isApproved ? "Aprobado" : "Pendiente",
+            author: authorName,
+            authorInitials: getInitials(authorName),
+            payer: isApproved ? payerName : "Pendiente",
+            payerId: matchingMember?.id || g.pagado_por || undefined,
             isPaid: isApproved,
           }
         })
         setExpenses(mapped)
-      } else {
+      } else if (!tripId.startsWith("demo-") && tripId !== "portugal") {
         setExpenses([])
       }
     })
@@ -202,7 +345,7 @@ export function BudgetView({
     return () => {
       isMounted = false
     }
-  }, [tripId])
+  }, [tripId, effectiveMembers, currentUser])
 
   // Calculations
   const totalRealized = useMemo(
@@ -229,28 +372,77 @@ export function BudgetView({
     Math.round((totalRealized / totalLimit) * 1000) / 10
   )
 
-  const perPersonLimit = Math.round(totalLimit / 4)
-  const perPersonRealized = Math.round(totalRealized / 4)
-  const perPersonAvailable = Math.round(availableRealized / 4)
+  const effectiveTravelersCount = Math.max(
+    effectiveMembers.length,
+    travelersCount || 1
+  )
 
-  // Payments per traveler
-  const paymentsByPerson = useMemo(() => {
-    const map: Record<string, number> = {
-      "Clara López": 0,
-      "Daniel López": 0,
-      "Lucía Martín": 0,
-      "Nicolás Martín": 0,
-    }
-    expenses.forEach((e) => {
-      if (e.status === "realizado") {
-        if (e.payer.includes("Clara")) map["Clara López"] += e.amount
-        else if (e.payer.includes("Daniel")) map["Daniel López"] += e.amount
-        else if (e.payer.includes("Lucía")) map["Lucía Martín"] += e.amount
-        else if (e.payer.includes("Nicolás")) map["Nicolás Martín"] += e.amount
+  const perPersonLimit = Math.round(totalLimit / effectiveTravelersCount)
+  const perPersonRealized = Math.round(totalRealized / effectiveTravelersCount)
+  const perPersonAvailable = Math.round(
+    availableRealized / effectiveTravelersCount
+  )
+
+  // Payments per real traveler
+  const memberPaymentStats = useMemo(() => {
+    const stats = effectiveMembers.map((member) => {
+      const memberName = (member.nombre || member.email || "Viajero").trim()
+      const firstName = memberName.split(" ")[0].toLowerCase()
+
+      const totalPaid = expenses
+        .filter((e) => e.status === "realizado")
+        .filter((e) => {
+          if (
+            e.payerId &&
+            (e.payerId === member.id || e.payerId === member.user_id)
+          ) {
+            return true
+          }
+          if (e.payer) {
+            const pLower = e.payer.toLowerCase().trim()
+            const mLower = memberName.toLowerCase()
+            return (
+              pLower === mLower ||
+              pLower === firstName ||
+              mLower.includes(pLower) ||
+              pLower.includes(firstName)
+            )
+          }
+          return false
+        })
+        .reduce((sum, e) => sum + e.amount, 0)
+
+      const isCurrentUser = Boolean(
+        (currentUser?.id && member.user_id === currentUser.id) ||
+        (currentUser?.email &&
+          member.email?.toLowerCase() === currentUser.email.toLowerCase()) ||
+        (currentUser?.name &&
+          member.nombre.toLowerCase() === currentUser.name.toLowerCase())
+      )
+
+      return {
+        memberId: member.id,
+        name: memberName,
+        initials: getInitials(member.nombre, member.email),
+        amount: totalPaid,
+        isCurrentUser,
       }
     })
-    return map
-  }, [expenses])
+
+    const totalAssigned = stats.reduce((sum, s) => sum + s.amount, 0)
+    const unassigned = totalRealized - totalAssigned
+    if (unassigned > 0) {
+      stats.push({
+        memberId: "otros-pagos",
+        name: "Fondo común / Otros",
+        initials: "FC",
+        amount: unassigned,
+        isCurrentUser: false,
+      })
+    }
+
+    return stats
+  }, [effectiveMembers, expenses, currentUser, totalRealized])
 
   // Filtered expenses
   const filteredExpenses = useMemo(() => {
@@ -274,6 +466,13 @@ export function BudgetView({
       otros: "Otros",
     }
 
+    const selectedMember = effectiveMembers.find((m) => m.id === newPayerId)
+    const payerName = selectedMember
+      ? selectedMember.nombre || selectedMember.email || "Viajero"
+      : currentUser?.name || "Tú"
+    const authorName = currentUser?.name || payerName || "Tú"
+    const isRealized = newStatus === "realizado"
+
     let createdId = `exp-${Date.now()}`
 
     if (tripId) {
@@ -282,7 +481,13 @@ export function BudgetView({
         categoria: newCategory,
         titulo: newTitle.trim(),
         monto: amountVal,
-        estado: newStatus === "realizado" ? "aprobado" : "pendiente",
+        estado: isRealized ? "aprobado" : "pendiente",
+        pagado_por:
+          selectedMember?.user_id && selectedMember.user_id.length > 20
+            ? selectedMember.user_id
+            : null,
+        pagado_por_nombre: isRealized ? payerName : null,
+        notas: newDescription.trim() || undefined,
       })
       if (res.data?.id) {
         createdId = res.data.id
@@ -297,10 +502,11 @@ export function BudgetView({
       categoryLabel: categoryLabels[newCategory],
       status: newStatus,
       description: newDescription.trim() || "Gasto añadido al viaje",
-      author: "Clara",
-      authorInitials: "CL",
-      payer: newStatus === "realizado" ? newPayer : "Pendiente",
-      isPaid: newStatus === "realizado",
+      author: authorName,
+      authorInitials: getInitials(authorName, currentUser?.email),
+      payer: isRealized ? payerName : "Pendiente",
+      payerId: selectedMember?.id,
+      isPaid: isRealized,
     }
     setExpenses((prev) => [newExp, ...prev])
     setIsAddExpenseOpen(false)
@@ -435,24 +641,63 @@ export function BudgetView({
         </div>
 
         <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center -space-x-2">
-              <span className="w-7 h-7 rounded-full bg-[#DDEAE2] text-[#245544] text-[10px] font-semibold flex items-center justify-center border-2 border-white dark:border-stone-900 shadow-2xs">
-                CL
-              </span>
-              <span className="w-7 h-7 rounded-full bg-[#EFE9DF] text-[#7A6242] text-[10px] font-semibold flex items-center justify-center border-2 border-white dark:border-stone-900 shadow-2xs">
-                DL
-              </span>
-              <span className="w-7 h-7 rounded-full bg-[#DDEAE2] text-[#245544] text-[10px] font-semibold flex items-center justify-center border-2 border-white dark:border-stone-900 shadow-2xs">
-                LM
-              </span>
-              <span className="w-7 h-7 rounded-full bg-[#EFE9DF] text-[#7A6242] text-[10px] font-semibold flex items-center justify-center border-2 border-white dark:border-stone-900 shadow-2xs">
-                NM
-              </span>
-            </div>
-            <span className="text-xs text-[#727B74] dark:text-stone-400">
-              4 viajeros
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onInvite}
+              className="flex items-center -space-x-2 cursor-pointer group"
+              title="Ver y gestionar viajeros"
+            >
+              {effectiveMembers.slice(0, 4).map((m, idx) => (
+                <span
+                  key={m.id || idx}
+                  title={`${m.nombre || m.email} (${m.rol === "owner" ? "Organizador" : m.rol === "editor" ? "Editor" : "Lector"})`}
+                  className={`w-7 h-7 rounded-full text-[10px] font-semibold flex items-center justify-center border-2 border-white dark:border-stone-900 shadow-2xs transition-transform group-hover:scale-105 ${
+                    idx % 2 === 0
+                      ? "bg-[#DDEAE2] text-[#245544] dark:bg-stone-800 dark:text-[#A7F3D0]"
+                      : "bg-[#EFE9DF] text-[#7A6242] dark:bg-stone-700 dark:text-amber-200"
+                  }`}
+                >
+                  {getInitials(m.nombre, m.email)}
+                </span>
+              ))}
+              {effectiveMembers.length > 4 && (
+                <span
+                  className="w-7 h-7 rounded-full bg-[#E8EFEA] dark:bg-stone-800 text-[#245544] dark:text-emerald-300 text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-stone-900 shadow-2xs group-hover:scale-105 transition-transform"
+                  title={`+${effectiveMembers.length - 4} viajeros más`}
+                >
+                  +{effectiveMembers.length - 4}
+                </span>
+              )}
+            </button>
+            <span className="text-xs text-[#727B74] dark:text-stone-400 font-medium">
+              {effectiveTravelersCount}{" "}
+              {effectiveTravelersCount === 1 ? "viajero" : "viajeros"}
             </span>
+
+            {onInvite && (
+              <button
+                type="button"
+                onClick={onInvite}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] bg-white dark:bg-stone-800 border border-[#CCD2CA] dark:border-stone-700 text-[#245544] dark:text-[#A7F3D0] text-xs font-semibold hover:bg-[#E8EFEA] dark:hover:bg-stone-700/60 transition-colors shadow-2xs cursor-pointer ml-1"
+                title="Invitar a un nuevo viajero"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Invitar</span>
+              </button>
+            )}
           </div>
 
           <Button
@@ -608,7 +853,8 @@ export function BudgetView({
             </div>
 
             <p className="text-[11px] text-[#727B74] dark:text-stone-400 leading-relaxed">
-              Reparto orientativo entre 4 viajeros. La media no es lo que ha
+              Reparto orientativo entre {effectiveTravelersCount}{" "}
+              {effectiveTravelersCount === 1 ? "viajero" : "viajeros"}. La media no es lo que ha
               pagado cada miembro.
             </p>
           </div>
@@ -645,7 +891,7 @@ export function BudgetView({
               <p className="text-xs text-[#4D5B54] dark:text-stone-300">
                 {totalRealized.toLocaleString("es-ES")} € realizados +{" "}
                 {totalProjected.toLocaleString("es-ES")} € de estimaciones
-                pendientes · {Math.round(totalForecast / 4).toLocaleString("es-ES")} €
+                pendientes · {Math.round(totalForecast / effectiveTravelersCount).toLocaleString("es-ES")} €
                 por persona
               </p>
             </div>
@@ -867,42 +1113,36 @@ export function BudgetView({
           </span>
         </div>
 
-        {/* 4 Family Members Cards */}
+        {/* Real Members Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          {Object.entries(paymentsByPerson).map(([name, amount]) => {
-            const initials = name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-            return (
-              <div
-                key={name}
-                className="p-3.5 sm:p-4 rounded-[10px] bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 flex items-center justify-between gap-2 shadow-2xs"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="w-8 h-8 rounded-full bg-[#E6EDE5] dark:bg-stone-800 text-[#245544] dark:text-[#A7F3D0] text-xs font-bold flex items-center justify-center shrink-0">
-                    {initials}
-                  </span>
-                  <div>
-                    <h4 className="text-xs font-medium text-[#4D5B54] dark:text-stone-300 truncate">
-                      {name}
-                    </h4>
-                    <span className="text-sm sm:text-base font-bold text-[#203D34] dark:text-stone-100">
-                      {amount.toLocaleString("es-ES")} €
-                    </span>
-                  </div>
-                </div>
-                <span className="text-[10px] text-[#727B74] dark:text-stone-400 self-end">
-                  pagados
+          {memberPaymentStats.map((stat) => (
+            <div
+              key={stat.memberId}
+              className="p-3.5 sm:p-4 rounded-[10px] bg-white dark:bg-stone-900 border border-[#DFE2DA] dark:border-stone-800 flex items-center justify-between gap-2 shadow-2xs"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="w-8 h-8 rounded-full bg-[#E6EDE5] dark:bg-stone-800 text-[#245544] dark:text-[#A7F3D0] text-xs font-bold flex items-center justify-center shrink-0">
+                  {stat.initials}
                 </span>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-medium text-[#4D5B54] dark:text-stone-300 truncate" title={stat.name}>
+                    {stat.name} {stat.isCurrentUser && <span className="text-[10px] text-[#245544] dark:text-emerald-400 font-semibold">(Tú)</span>}
+                  </h4>
+                  <span className="text-sm sm:text-base font-bold text-[#203D34] dark:text-stone-100">
+                    {stat.amount.toLocaleString("es-ES")} €
+                  </span>
+                </div>
               </div>
-            )
-          })}
+              <span className="text-[10px] text-[#727B74] dark:text-stone-400 shrink-0 self-end">
+                pagados
+              </span>
+            </div>
+          ))}
         </div>
 
         <p className="text-[11px] text-[#727B74] dark:text-stone-400 italic">
-          ℹ Estos son pagos reales, no un reparto de deudas. El límite sigue
-          siendo de {perPersonLimit} € por persona.
+          ℹ Estos son pagos reales registrados en el viaje, no un reparto de deudas. El límite medio es
+          de {perPersonLimit.toLocaleString("es-ES")} € por persona.
         </p>
       </section>
 
@@ -1000,14 +1240,23 @@ export function BudgetView({
                       Pagado por
                     </label>
                     <select
-                      value={newPayer}
-                      onChange={(e) => setNewPayer(e.target.value)}
-                      className="w-full h-10 px-3 rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-xs"
+                      value={newPayerId}
+                      onChange={(e) => setNewPayerId(e.target.value)}
+                      className="w-full h-10 px-3 rounded-[8px] border border-[#CCD2CA] dark:border-stone-700 bg-white dark:bg-stone-800 text-xs text-[#203D34] dark:text-stone-200"
                     >
-                      <option value="Clara">Clara López</option>
-                      <option value="Daniel">Daniel López</option>
-                      <option value="Lucía">Lucía Martín</option>
-                      <option value="Nicolás">Nicolás Martín</option>
+                      {effectiveMembers.map((member) => {
+                        const isMe =
+                          (currentUser?.id && member.user_id === currentUser.id) ||
+                          (currentUser?.email &&
+                            member.email?.toLowerCase() === currentUser.email.toLowerCase()) ||
+                          (currentUser?.name &&
+                            member.nombre.toLowerCase() === currentUser.name.toLowerCase())
+                        return (
+                          <option key={member.id} value={member.id}>
+                            {member.nombre || member.email || "Viajero"}{isMe ? " (Tú)" : ""}
+                          </option>
+                        )
+                      })}
                     </select>
                   </div>
                 )}

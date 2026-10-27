@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { tripService, DEFAULT_DESTINATION_IMAGE, DEFAULT_HOTEL_IMAGE } from "@/lib/tripService"
 import type { Destination } from "./DestinationsSlider"
+import { formatSegmentDates } from "./ItineraryView"
 import type {
   Transporte,
   EstadoSeleccionTransporte,
@@ -323,6 +324,7 @@ interface CityDetailViewProps {
   cityId?: string
   cityName?: string
   cityData?: Destination
+  destinations?: Destination[]
   tripName?: string
   startDate?: string
   travelersCount?: number
@@ -346,6 +348,7 @@ export function CityDetailView({
   cityId,
   cityName = "Lisboa",
   cityData,
+  destinations,
   tripName = "Portugal en familia",
   startDate = "2026-11-06",
   travelersCount = 4,
@@ -357,6 +360,66 @@ export function CityDetailView({
   onUpdateDays,
 }: CityDetailViewProps) {
   const cityImage = cityData?.image || DEFAULT_DESTINATION_IMAGE
+
+  // Scroll to top when navigating between cities
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" })
+    const mainContainer = document.querySelector("main")
+    if (mainContainer) {
+      mainContainer.scrollTo({ top: 0, behavior: "smooth" })
+    }
+  }, [cityId])
+
+  // Next destination calculation based on trip itinerary order
+  const { nextCity, nextCityDatesText, isLastCity } = useMemo(() => {
+    if (!destinations || destinations.length === 0) {
+      return { nextCity: null, nextCityDatesText: "", isLastCity: false }
+    }
+
+    const currentIndex = destinations.findIndex(
+      (d) =>
+        (cityId && d.id === cityId) ||
+        (cityName && d.name.toLowerCase() === cityName.toLowerCase())
+    )
+
+    if (currentIndex === -1) {
+      return { nextCity: null, nextCityDatesText: "", isLastCity: false }
+    }
+
+    const isLast = currentIndex === destinations.length - 1
+    const next = !isLast ? destinations[currentIndex + 1] : null
+
+    if (!next) {
+      return { nextCity: null, nextCityDatesText: "", isLastCity: isLast }
+    }
+
+    // Cumulative offset nights up to the start of nextCity
+    let offsetDays = 0
+    for (let i = 0; i <= currentIndex; i++) {
+      const dNights = Math.max(
+        1,
+        (destinations[i].nights || 1) > 1 ? (destinations[i].nights || 1) - 1 : 1
+      )
+      offsetDays += dNights
+    }
+
+    const nextNights = Math.max(
+      1,
+      (next.nights || 1) > 1 ? (next.nights || 1) - 1 : 1
+    )
+    const formattedDates = formatSegmentDates(
+      startDate,
+      offsetDays,
+      nextNights,
+      false
+    )
+
+    return {
+      nextCity: next,
+      nextCityDatesText: formattedDates,
+      isLastCity: isLast,
+    }
+  }, [destinations, cityId, cityName, startDate])
 
   // Dynamic days count directly tied to itinerary / database
   const [daysCount, setDaysCount] = useState<number>(() =>
@@ -1888,36 +1951,108 @@ export function CityDetailView({
         </div>
       </section>
 
-      {/* FOOTER: CONTINUACIÓN DEL VIAJE (SINTRA) */}
-      <div className="p-5 sm:p-6 rounded-[14px] bg-[#F5F2E9] dark:bg-stone-800/60 border border-[#DFE2DA] dark:border-stone-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-[10px] font-semibold tracking-wider text-[#727B74] dark:text-stone-400 uppercase block">
-            LA HISTORIA CONTINÚA
-          </span>
-          <h3 className="font-serif text-xl sm:text-2xl font-normal text-[#203D34] dark:text-stone-100">
-            Sintra · 9–10 nov · 1 noche
-          </h3>
-        </div>
+      {/* FOOTER: CONTINUACIÓN DEL VIAJE (SIGUIENTE CIUDAD) O FIN DEL ITINERARIO */}
+      {nextCity ? (
+        <div className="p-5 sm:p-6 rounded-[14px] bg-[#F5F2E9] dark:bg-stone-800/60 border border-[#DFE2DA] dark:border-stone-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <span className="text-[10px] font-semibold tracking-wider text-[#727B74] dark:text-stone-400 uppercase block">
+              LA HISTORIA CONTINÚA
+            </span>
+            <h3 className="font-serif text-xl sm:text-2xl font-normal text-[#203D34] dark:text-stone-100">
+              {nextCity.name} · {nextCityDatesText || nextCity.dates || `${nextCity.nights} noches`}
+            </h3>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => onSelectCity?.("sintra")}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[#245544] hover:bg-[#1b4335] text-white text-xs font-semibold transition-all cursor-pointer shadow-2xs"
-        >
-          <span>Ver Sintra</span>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+          <button
+            type="button"
+            onClick={() => onSelectCity?.(nextCity.id)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[#245544] hover:bg-[#1b4335] text-white text-xs font-semibold transition-all cursor-pointer shadow-2xs"
           >
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-        </button>
-      </div>
+            <span>Ver {nextCity.name}</span>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </button>
+        </div>
+      ) : isLastCity ? (
+        <div className="p-5 sm:p-6 rounded-[14px] bg-[#F5F2E9] dark:bg-stone-800/60 border border-[#DFE2DA] dark:border-stone-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <span className="text-[10px] font-semibold tracking-wider text-[#727B74] dark:text-stone-400 uppercase block">
+              FIN DEL ITINERARIO
+            </span>
+            <h3 className="font-serif text-xl sm:text-2xl font-normal text-[#203D34] dark:text-stone-100">
+              {cityName} es la última parada de {tripName}
+            </h3>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {destinations && destinations.length > 1 && (
+              <button
+                type="button"
+                onClick={() => onSelectCity?.(destinations[0].id)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-transparent hover:bg-[#EAE5D9] dark:hover:bg-stone-700/60 border border-[#DFE2DA] dark:border-stone-600 text-[#203D34] dark:text-stone-200 text-xs font-semibold transition-all cursor-pointer"
+              >
+                <span>Ver {destinations[0].name} (Inicio)</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[#245544] hover:bg-[#1b4335] text-white text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+            >
+              <span>Volver al itinerario</span>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="p-5 sm:p-6 rounded-[14px] bg-[#F5F2E9] dark:bg-stone-800/60 border border-[#DFE2DA] dark:border-stone-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <span className="text-[10px] font-semibold tracking-wider text-[#727B74] dark:text-stone-400 uppercase block">
+              ITINERARIO DEL VIAJE
+            </span>
+            <h3 className="font-serif text-xl sm:text-2xl font-normal text-[#203D34] dark:text-stone-100">
+              Explora las demás etapas de {tripName}
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-[8px] bg-[#245544] hover:bg-[#1b4335] text-white text-xs font-semibold transition-all cursor-pointer shadow-2xs"
+          >
+            <span>Volver al itinerario</span>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Modal para añadir o editar transporte */}
       <CreateTransportModal
